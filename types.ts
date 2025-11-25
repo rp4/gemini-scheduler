@@ -44,7 +44,7 @@ export interface ProjectInput {
 export interface ScheduleCell {
   date: string; // ISO Date string for the Monday
   hours: number;
-  phase: PhaseName | null;
+  phase: PhaseName | string | null;
 }
 
 export interface ScheduleRow {
