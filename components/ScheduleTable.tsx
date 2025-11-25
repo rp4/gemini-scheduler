@@ -4,9 +4,13 @@ import { format, parseISO } from 'date-fns';
 import { Download, TrendingUp, Users, Layers, User, ChevronRight, ChevronDown } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
+export type ViewMode = 'project' | 'member';
+
 interface ScheduleTableProps {
   data: ScheduleData;
   onCellUpdate: (projectId: string, staffTypeId: string, staffIndex: number, date: string, value: any, type: 'hours' | 'phase') => void;
+  viewMode: ViewMode;
+  onViewModeChange: (mode: ViewMode) => void;
 }
 
 const PHASE_COLORS: Record<string, string> = {
@@ -19,8 +23,6 @@ const PHASE_COLORS: Record<string, string> = {
 
 const PHASE_OPTIONS = Object.values(PhaseName);
 
-type ViewMode = 'project' | 'member';
-
 interface GroupedRow {
   id: string;
   label: string;
@@ -32,8 +34,7 @@ interface GroupedRow {
   children: ScheduleRow[];
 }
 
-export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, onCellUpdate }) => {
-  const [viewMode, setViewMode] = useState<ViewMode>('project');
+export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, onCellUpdate, viewMode, onViewModeChange }) => {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   
   // Editing State
@@ -50,7 +51,7 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, onCellUpdate
   };
 
   const handleViewModeChange = (mode: ViewMode) => {
-    setViewMode(mode);
+    onViewModeChange(mode);
     setExpandedGroups(new Set()); 
   };
 
@@ -292,7 +293,7 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, onCellUpdate
            <div className="flex gap-2 text-xs">
               {Object.entries(PHASE_COLORS).map(([phase, color]) => (
                   <div key={phase} className="flex items-center gap-1">
-                      <div className={`w-3 h-3 rounded-sm ${color.split(' ')[0]} border ${color.split(' ')[2] || 'border-transparent'}`}></div>
+                      <div className={`w-3 h-3 rounded-sm ${color.split(' ')[0]}`}></div>
                       <span>{phase}</span>
                   </div>
               ))}

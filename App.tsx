@@ -3,7 +3,8 @@ import { GlobalConfig, ProjectInput, PhaseName } from './types';
 import { DEFAULT_CONFIG, INITIAL_PROJECTS } from './constants';
 import { generateSchedule, optimizeSchedule } from './services/scheduleEngine';
 import { ProjectList } from './components/ProjectList';
-import { ScheduleTable } from './components/ScheduleTable';
+import { TeamMemberList } from './components/TeamMemberList';
+import { ScheduleTable, ViewMode } from './components/ScheduleTable';
 import { ConfigurationPanel } from './components/ConfigurationPanel';
 import { Settings, Sparkles } from 'lucide-react';
 
@@ -12,6 +13,7 @@ const App: React.FC = () => {
   const [projects, setProjects] = useState<ProjectInput[]>(INITIAL_PROJECTS);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [isOptimizing, setIsOptimizing] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('project');
 
   // Recalculate schedule whenever config or projects change
   const scheduleData = useMemo(() => {
@@ -88,14 +90,23 @@ const App: React.FC = () => {
 
       {/* Main Content */}
       <main className="flex-1 flex overflow-hidden p-4 gap-4">
-        {/* Left Sidebar: Projects */}
+        {/* Left Sidebar */}
         <aside className="w-96 shrink-0 flex flex-col h-full">
-          <ProjectList projects={projects} setProjects={setProjects} currentConfig={config} />
+           {viewMode === 'project' ? (
+             <ProjectList projects={projects} setProjects={setProjects} currentConfig={config} />
+           ) : (
+             <TeamMemberList config={config} setConfig={setConfig} />
+           )}
         </aside>
 
         {/* Main Area: Schedule Table */}
         <section className="flex-1 h-full min-w-0">
-          <ScheduleTable data={scheduleData} onCellUpdate={handleCellUpdate} />
+          <ScheduleTable 
+            data={scheduleData} 
+            onCellUpdate={handleCellUpdate} 
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+          />
         </section>
       </main>
 
