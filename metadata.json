@@ -1,0 +1,5 @@
+{
+  "name": "gemini-scheduler",
+  "description": "A comprehensive scheduling tool for internal audit managers to plan resources, allocate budget hours, and optimize staff distribution across audit phases throughout the year.",
+  "requestFramePermissions": []
+}
