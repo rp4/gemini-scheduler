@@ -60,14 +60,28 @@ export const optimizeSchedule = (
 ): ProjectInput[] => {
     let bestProjects = currentProjects.map(p => ({ ...p }));
     
+    // Updated Cost function: considers the Total Average Hours per Week (aggregate load)
+    // It minimizes the variance of the total weekly hours across the entire organization.
     const getCost = (projs: ProjectInput[]) => {
         const loads = calculateWeeklyAggregates(projs, config);
         let cost = 0;
+        
+        const totalWeeklyLoad = new Array(53).fill(0);
+        
+        // Sum up all staff hours for each week to get organization-wide total
         Object.values(loads).forEach(weeks => {
-            weeks.forEach(hours => {
-                cost += (hours * hours);
+            weeks.forEach((hours, idx) => {
+                if (totalWeeklyLoad[idx] !== undefined) {
+                    totalWeeklyLoad[idx] += hours;
+                }
             });
         });
+
+        // Sum of squares of the total load creates a metric that penalizes peaks in the global schedule
+        totalWeeklyLoad.forEach(hours => {
+            cost += (hours * hours);
+        });
+        
         return cost;
     };
 

@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { ScheduleData, PhaseName, ScheduleRow, ScheduleCell } from '../types';
 import { format, parseISO } from 'date-fns';
-import { Download, TrendingUp, Users, Layers, User, ChevronRight, ChevronDown } from 'lucide-react';
+import { Download, TrendingUp, Users, Layers, User, ChevronRight, ChevronDown, Clock, Activity, Target } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 export type ViewMode = 'project' | 'member';
@@ -79,26 +79,14 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, onCellUpdate
   // Stats
   const stats = useMemo(() => {
     const weeksCount = data.headers.length || 52;
-    const roleAggregation: Record<string, { total: number, count: number }> = {};
     let grandTotal = 0;
 
     data.rows.forEach(row => {
-        const role = row.staffTypeName;
-        if (!roleAggregation[role]) {
-            roleAggregation[role] = { total: 0, count: 0 };
-        }
-        const rowTotal = row.cells.reduce((acc, cell) => acc + (cell.hours || 0), 0);
-        roleAggregation[role].total += rowTotal;
-        grandTotal += rowTotal;
+        grandTotal += row.cells.reduce((acc, cell) => acc + (cell.hours || 0), 0);
     });
 
-    const roleStats = Object.entries(roleAggregation).map(([role, values]) => ({
-        role,
-        avgWeekly: values.total / weeksCount
-    }));
-
     const totalAvgWeekly = grandTotal / weeksCount;
-    return { totalAvgWeekly, roleStats };
+    return { totalAvgWeekly };
   }, [data]);
 
   // Grouping
@@ -251,17 +239,39 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, onCellUpdate
                 <TrendingUp className="w-5 h-5 text-indigo-600" />
             </div>
          </div>
-         {stats.roleStats.map((roleStat) => (
-             <div key={roleStat.role} className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex items-center justify-between">
-                <div>
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider truncate w-32" title={roleStat.role}>{roleStat.role} Avg</p>
-                    <p className="text-xl font-bold text-slate-700">{roleStat.avgWeekly.toFixed(1)} <span className="text-xs font-normal text-slate-400">hrs/wk</span></p>
-                </div>
-                <div className={`p-2 rounded-full bg-slate-100`}>
-                    <Users className="w-4 h-4 text-slate-600" />
-                </div>
-             </div>
-         ))}
+         
+         {/* Mock Metric 1: Overtime */}
+         <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Overtime Hours</p>
+                <p className="text-xl font-bold text-slate-700">42 <span className="text-xs font-normal text-slate-400">hrs</span></p>
+            </div>
+            <div className="p-2 bg-amber-50 rounded-full">
+                <Clock className="w-4 h-4 text-amber-600" />
+            </div>
+         </div>
+
+         {/* Mock Metric 2: Utilization */}
+         <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Utilization</p>
+                <p className="text-xl font-bold text-slate-700">87%</p>
+            </div>
+            <div className="p-2 bg-emerald-50 rounded-full">
+                <Activity className="w-4 h-4 text-emerald-600" />
+            </div>
+         </div>
+
+         {/* Mock Metric 3: Skills Matching */}
+         <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Skills Matching</p>
+                <p className="text-xl font-bold text-slate-700">94%</p>
+            </div>
+            <div className="p-2 bg-blue-50 rounded-full">
+                <Target className="w-4 h-4 text-blue-600" />
+            </div>
+         </div>
       </div>
 
       <div className="p-3 border-b border-slate-200 flex justify-between items-center bg-white">
