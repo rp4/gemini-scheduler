@@ -31,15 +31,19 @@ const App: React.FC = () => {
     setProjects(prev => prev.map(p => {
       if (p.id !== projectId) return p;
 
-      const newOverrides = { ...p.overrides } || { phase: {}, staff: {} };
-      if (!newOverrides.phase) newOverrides.phase = {};
-      if (!newOverrides.staff) newOverrides.staff = {};
+      // Deep copy override structure to ensure immutability
+      const currentOverrides = p.overrides || {};
+      const newOverrides: any = { 
+        phase: { ...(currentOverrides.phase || {}) },
+        staff: { ...(currentOverrides.staff || {}) }
+      };
 
       if (type === 'phase') {
          newOverrides.phase[date] = value as PhaseName;
       } else if (type === 'hours') {
          const key = `${staffTypeId}-${staffIndex}`;
-         if (!newOverrides.staff[key]) newOverrides.staff[key] = {};
+         // Ensure the specific staff member's record is also a new object copy
+         newOverrides.staff[key] = { ...(newOverrides.staff[key] || {}) };
          newOverrides.staff[key][date] = Number(value);
       }
 

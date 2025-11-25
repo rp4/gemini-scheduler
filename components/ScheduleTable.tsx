@@ -167,16 +167,29 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, onCellUpdate
       const inputRef = useRef<HTMLInputElement | HTMLSelectElement>(null);
 
       useEffect(() => {
-          inputRef.current?.focus();
-      }, []);
+          if (inputRef.current) {
+              inputRef.current.focus();
+              if (type === 'hours' && inputRef.current instanceof HTMLInputElement) {
+                  inputRef.current.select();
+              }
+          }
+      }, [type]);
 
       const handleBlur = () => {
-          onSave(val);
+          // If type is phase, we handle save in onChange to avoid closure staleness issues
+          if (type !== 'phase') {
+              onSave(val);
+          }
       };
 
       const handleKeyDown = (e: React.KeyboardEvent) => {
           if (e.key === 'Enter') {
-              inputRef.current?.blur();
+              if (type === 'phase') {
+                  // For phase, explicit enter saves current val
+                  onSave(val);
+              } else {
+                  inputRef.current?.blur();
+              }
           } else if (e.key === 'Escape') {
               onCancel();
           }
@@ -191,12 +204,15 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, onCellUpdate
                   onChange={(e) => {
                     const newVal = e.target.value;
                     setVal(newVal);
-                    // Immediate save on select change for better UX
-                    inputRef.current?.blur(); 
+                    // Save immediately on change. 
+                    // Do NOT rely on onBlur here because handleBlur closes over stale 'val' state
+                    // due to the way React event batching works with synchronous blur() calls.
+                    onSave(newVal); 
                   }}
-                  onBlur={handleBlur}
                   onKeyDown={handleKeyDown}
+                  autoFocus
               >
+                  <option value="" disabled>Select Phase...</option>
                   {PHASE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
               </select>
           );
@@ -211,6 +227,7 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, onCellUpdate
               onChange={(e) => setVal(e.target.value)}
               onBlur={handleBlur}
               onKeyDown={handleKeyDown}
+              autoFocus
           />
       );
   };
@@ -420,9 +437,9 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, onCellUpdate
                                             type="hours"
                                             onSave={(val) => {
                                                 const num = parseFloat(val);
-                                                if (!isNaN(num)) {
-                                                    onCellUpdate(row.projectId, row.staffTypeId, row.staffIndex, cell.date, num, 'hours');
-                                                }
+                                                // Allow 0, allow 0.0. Treat NaN as 0 (clearing the field)
+                                                const finalVal = isNaN(num) ? 0 : num;
+                                                onCellUpdate(row.projectId, row.staffTypeId, row.staffIndex, cell.date, finalVal, 'hours');
                                                 setEditingCell(null);
                                             }}
                                             onCancel={() => setEditingCell(null)}
