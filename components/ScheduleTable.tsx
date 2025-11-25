@@ -177,8 +177,11 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, onCellUpdate
 
       const handleBlur = () => {
           // If type is phase, we handle save in onChange to avoid closure staleness issues
+          // and we use onBlur to just cancel if they click away without selecting.
           if (type !== 'phase') {
               onSave(val);
+          } else {
+              onCancel();
           }
       };
 
@@ -205,12 +208,13 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, onCellUpdate
                     const newVal = e.target.value;
                     setVal(newVal);
                     // Save immediately on change. 
-                    // Do NOT rely on onBlur here because handleBlur closes over stale 'val' state
-                    // due to the way React event batching works with synchronous blur() calls.
                     onSave(newVal); 
                   }}
+                  onBlur={handleBlur}
                   onKeyDown={handleKeyDown}
-                  autoFocus
+                  // Important: Stop propagation so interacting with the select doesn't bubble to the TD 
+                  // which could cause re-renders/closing of the menu.
+                  onClick={(e) => e.stopPropagation()} 
               >
                   <option value="" disabled>Select Phase...</option>
                   {PHASE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
@@ -227,7 +231,7 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, onCellUpdate
               onChange={(e) => setVal(e.target.value)}
               onBlur={handleBlur}
               onKeyDown={handleKeyDown}
-              autoFocus
+              onClick={(e) => e.stopPropagation()}
           />
       );
   };
@@ -379,7 +383,10 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, onCellUpdate
                             }}
                           >
                              {isEditing ? (
-                                <div className="absolute inset-0 z-50 p-0.5">
+                                <div 
+                                    className="absolute inset-0 z-50 p-0.5"
+                                    onClick={(e) => e.stopPropagation()} 
+                                >
                                     <EditCellInput 
                                         initialValue={cell.phase === 'Mixed' ? '' : cell.phase || ''}
                                         type="phase"
@@ -431,7 +438,10 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, onCellUpdate
                                     onClick={() => setEditingCell({ id: row.rowId, date: cell.date, type: 'staff' })}
                                 >
                                 {isEditing ? (
-                                    <div className="absolute inset-0 z-50 p-0.5">
+                                    <div 
+                                        className="absolute inset-0 z-50 p-0.5"
+                                        onClick={(e) => e.stopPropagation()} 
+                                    >
                                         <EditCellInput 
                                             initialValue={cell.hours}
                                             type="hours"
