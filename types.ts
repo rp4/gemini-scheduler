@@ -31,6 +31,13 @@ export interface GlobalConfig {
   staffTypes: StaffType[];
 }
 
+export interface ProjectOverrides {
+  // Key: ISO Date string (Monday) -> PhaseName
+  phase?: Record<string, PhaseName>;
+  // Key: "staffTypeId-staffIndex" -> ISO Date string -> hours
+  staff?: Record<string, Record<string, number>>;
+}
+
 export interface ProjectInput {
   id: string;
   name: string;
@@ -38,6 +45,7 @@ export interface ProjectInput {
   startWeekOffset: number; // User preference: delay start by X weeks from Jan 1
   locked: boolean;
   phasesConfig: PhaseConfig[]; // Snapshot of configuration at creation
+  overrides?: ProjectOverrides;
 }
 
 // Structure for the output table
@@ -45,10 +53,13 @@ export interface ScheduleCell {
   date: string; // ISO Date string for the Monday
   hours: number;
   phase: PhaseName | string | null;
+  isOverride?: boolean;
 }
 
 export interface ScheduleRow {
   rowId: string;
+  projectId: string; // Link back to project
+  staffTypeId: string; // Link back to staff type
   projectName: string;
   staffTypeName: string;
   staffIndex: number; // If split into multiple employees (1, 2, 3...)

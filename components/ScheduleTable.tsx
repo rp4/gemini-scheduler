@@ -1,11 +1,12 @@
-import React, { useMemo, useState } from 'react';
-import { ScheduleData, PhaseName, ScheduleRow } from '../types';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
+import { ScheduleData, PhaseName, ScheduleRow, ScheduleCell } from '../types';
 import { format, parseISO } from 'date-fns';
 import { Download, TrendingUp, Users, Layers, User, ChevronRight, ChevronDown } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 interface ScheduleTableProps {
   data: ScheduleData;
+  onCellUpdate: (projectId: string, staffTypeId: string, staffIndex: number, date: string, value: any, type: 'hours' | 'phase') => void;
 }
 
 const PHASE_COLORS: Record<string, string> = {
@@ -16,6 +17,8 @@ const PHASE_COLORS: Record<string, string> = {
   'Mixed': 'bg-slate-300 text-slate-700 border-slate-400'
 };
 
+const PHASE_OPTIONS = Object.values(PhaseName);
+
 type ViewMode = 'project' | 'member';
 
 interface GroupedRow {
@@ -23,13 +26,18 @@ interface GroupedRow {
   label: string;
   subLabel?: string;
   totalHours: number;
-  cells: { hours: number; phase: string | null }[];
+  // Metadata for editing group-level cells (Project view only)
+  projectId?: string; 
+  cells: { hours: number; phase: string | null; date: string }[];
   children: ScheduleRow[];
 }
 
-export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data }) => {
+export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, onCellUpdate }) => {
   const [viewMode, setViewMode] = useState<ViewMode>('project');
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  
+  // Editing State
+  const [editingCell, setEditingCell] = useState<{ id: string, date: string, type: 'project' | 'staff' } | null>(null);
 
   const toggleGroup = (id: string) => {
     const newSet = new Set(expandedGroups);
@@ -43,17 +51,13 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data }) => {
 
   const handleViewModeChange = (mode: ViewMode) => {
     setViewMode(mode);
-    setExpandedGroups(new Set()); // Collapse all when switching views
+    setExpandedGroups(new Set()); 
   };
 
   const exportToExcel = () => {
     const wsData = [];
-    
-    // Headers
     const headerRow = ['Audit Name', 'Staff Type', 'Team Member', 'Split #', 'Total Hrs', ...data.headers.map(d => format(parseISO(d), 'M/d/yy'))];
     wsData.push(headerRow);
-
-    // Rows (Exporting flat data always for utility)
     data.rows.forEach(row => {
         const rowData = [
             row.projectName,
@@ -65,14 +69,13 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data }) => {
         ];
         wsData.push(rowData);
     });
-
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet(wsData);
     XLSX.utils.book_append_sheet(wb, ws, "Schedule");
     XLSX.writeFile(wb, "Audit_Schedule_2026.xlsx");
   };
 
-  // Calculate Stats
+  // Stats
   const stats = useMemo(() => {
     const weeksCount = data.headers.length || 52;
     const roleAggregation: Record<string, { total: number, count: number }> = {};
@@ -97,7 +100,7 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data }) => {
     return { totalAvgWeekly, roleStats };
   }, [data]);
 
-  // Grouping Logic
+  // Grouping
   const groupedData = useMemo(() => {
     const groups: Record<string, GroupedRow> = {};
 
@@ -105,12 +108,13 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data }) => {
       let groupId: string;
       let label: string;
       let subLabel = '';
+      let projectId: string | undefined = undefined;
 
       if (viewMode === 'project') {
-        groupId = row.projectName;
+        groupId = row.projectName; // Group by Project Name
         label = row.projectName;
+        projectId = row.projectId;
       } else {
-        // Group by Unique Member Slot (Role + Index)
         groupId = `${row.staffTypeName}-${row.staffIndex}`;
         label = `Placeholder`;
         subLabel = `${row.staffTypeName} ${row.staffIndex > 1 ? '#' + row.staffIndex : ''}`;
@@ -121,8 +125,9 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data }) => {
           id: groupId,
           label,
           subLabel,
+          projectId,
           totalHours: 0,
-          cells: data.headers.map(() => ({ hours: 0, phase: null })),
+          cells: data.headers.map(d => ({ hours: 0, phase: null, date: d })),
           children: []
         };
       }
@@ -131,12 +136,9 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data }) => {
       group.totalHours += row.totalHours;
       group.children.push(row);
 
-      // Aggregate Cells
       row.cells.forEach((cell, idx) => {
         const groupCell = group.cells[idx];
         groupCell.hours += cell.hours;
-
-        // Phase Logic
         if (cell.hours > 0 && cell.phase) {
            if (groupCell.phase === null) {
              groupCell.phase = cell.phase;
@@ -146,9 +148,72 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data }) => {
         }
       });
     });
-
     return Object.values(groups);
   }, [data, viewMode]);
+
+  // Editing Component
+  const EditCellInput = ({ 
+      initialValue, 
+      type, 
+      onSave, 
+      onCancel 
+  }: { 
+      initialValue: any, 
+      type: 'hours' | 'phase', 
+      onSave: (val: any) => void, 
+      onCancel: () => void 
+  }) => {
+      const [val, setVal] = useState(initialValue);
+      const inputRef = useRef<HTMLInputElement | HTMLSelectElement>(null);
+
+      useEffect(() => {
+          inputRef.current?.focus();
+      }, []);
+
+      const handleBlur = () => {
+          onSave(val);
+      };
+
+      const handleKeyDown = (e: React.KeyboardEvent) => {
+          if (e.key === 'Enter') {
+              inputRef.current?.blur();
+          } else if (e.key === 'Escape') {
+              onCancel();
+          }
+      };
+
+      if (type === 'phase') {
+          return (
+              <select
+                  ref={inputRef as any}
+                  className="w-full h-full text-[10px] p-0 border-none outline-none bg-white focus:ring-2 focus:ring-indigo-500 rounded"
+                  value={val}
+                  onChange={(e) => {
+                    const newVal = e.target.value;
+                    setVal(newVal);
+                    // Immediate save on select change for better UX
+                    inputRef.current?.blur(); 
+                  }}
+                  onBlur={handleBlur}
+                  onKeyDown={handleKeyDown}
+              >
+                  {PHASE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+              </select>
+          );
+      }
+
+      return (
+          <input
+              ref={inputRef as any}
+              type="number"
+              className="w-full h-full text-center text-xs p-0 border-none outline-none bg-white focus:ring-2 focus:ring-indigo-500 rounded"
+              value={val}
+              onChange={(e) => setVal(e.target.value)}
+              onBlur={handleBlur}
+              onKeyDown={handleKeyDown}
+          />
+      );
+  };
 
   return (
     <div className="flex flex-col h-full bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
@@ -164,7 +229,6 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data }) => {
                 <TrendingUp className="w-5 h-5 text-indigo-600" />
             </div>
          </div>
-         
          {stats.roleStats.map((roleStat) => (
              <div key={roleStat.role} className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex items-center justify-between">
                 <div>
@@ -181,15 +245,11 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data }) => {
       <div className="p-3 border-b border-slate-200 flex justify-between items-center bg-white">
         <div className="flex items-center gap-4">
           <h2 className="text-md font-bold text-slate-800">Schedule Details</h2>
-          
-          {/* View Toggles */}
           <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
             <button
               onClick={() => handleViewModeChange('project')}
               className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                viewMode === 'project' 
-                  ? 'bg-white text-indigo-600 shadow-sm' 
-                  : 'text-slate-500 hover:text-slate-700'
+                viewMode === 'project' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
               }`}
             >
               <Layers className="w-3.5 h-3.5" />
@@ -198,9 +258,7 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data }) => {
             <button
               onClick={() => handleViewModeChange('member')}
               className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                viewMode === 'member' 
-                  ? 'bg-white text-indigo-600 shadow-sm' 
-                  : 'text-slate-500 hover:text-slate-700'
+                viewMode === 'member' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
               }`}
             >
               <User className="w-3.5 h-3.5" />
@@ -276,7 +334,7 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data }) => {
                             className="flex items-center gap-2 w-full text-left focus:outline-none"
                           >
                             {isExpanded ? <ChevronDown className="w-4 h-4 text-indigo-600" /> : <ChevronRight className="w-4 h-4 text-slate-400" />}
-                            <span className="truncate" title={viewMode === 'member' ? `${group.label} (${group.subLabel})` : group.label}>
+                            <span className="truncate" title={group.label}>
                                 {viewMode === 'project' ? group.label : `${group.label} (${group.subLabel})`}
                             </span>
                           </button>
@@ -290,18 +348,45 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data }) => {
                         <td className="p-2 text-center font-bold font-mono text-slate-800 border-r border-slate-200 text-xs">
                           {Math.round(group.totalHours)}
                         </td>
-                        {group.cells.map((cell, cIdx) => (
-                          <td key={`g-${cIdx}`} className="p-1 text-center border-r border-slate-200 h-10 min-w-[50px]">
-                             {cell.hours > 0 && (
-                                <div 
-                                    className={`h-full w-full rounded flex items-center justify-center text-[10px] font-bold border ${PHASE_COLORS[cell.phase || ''] || 'bg-gray-100 text-gray-600 border-gray-200'}`}
-                                    title={`${cell.phase || 'Allocated'}: ${cell.hours} hrs`}
-                                >
-                                    {Math.round(cell.hours)}
+                        {group.cells.map((cell, cIdx) => {
+                          const isEditing = editingCell?.id === group.id && editingCell?.date === cell.date && editingCell?.type === 'project';
+                          // Only allow editing phase on Project groups, not Member groups
+                          const canEdit = viewMode === 'project' && group.projectId;
+
+                          return (
+                          <td 
+                            key={`g-${cIdx}`} 
+                            className={`p-1 text-center border-r border-slate-200 h-10 min-w-[50px] relative ${canEdit ? 'cursor-pointer hover:bg-indigo-50/50' : ''}`}
+                            onClick={() => {
+                                if (canEdit) setEditingCell({ id: group.id, date: cell.date, type: 'project' });
+                            }}
+                          >
+                             {isEditing ? (
+                                <div className="absolute inset-0 z-50 p-0.5">
+                                    <EditCellInput 
+                                        initialValue={cell.phase === 'Mixed' ? '' : cell.phase || ''}
+                                        type="phase"
+                                        onSave={(val) => {
+                                            if (group.projectId && val) {
+                                                onCellUpdate(group.projectId, '', 0, cell.date, val, 'phase');
+                                            }
+                                            setEditingCell(null);
+                                        }}
+                                        onCancel={() => setEditingCell(null)}
+                                    />
                                 </div>
+                             ) : (
+                                cell.hours > 0 && (
+                                    <div 
+                                        className={`h-full w-full rounded flex items-center justify-center text-[10px] font-bold border ${PHASE_COLORS[cell.phase || ''] || 'bg-gray-100 text-gray-600 border-gray-200'}`}
+                                        title={`${cell.phase || 'Allocated'}: ${cell.hours} hrs (Click to Change Phase)`}
+                                    >
+                                        {Math.round(cell.hours)}
+                                    </div>
+                                )
                              )}
                           </td>
-                        ))}
+                        )})}
                       </tr>
 
                       {/* Child Rows */}
@@ -319,18 +404,44 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data }) => {
                             <td className="p-2 text-center font-mono text-slate-500 border-r border-slate-200 text-xs">
                                 {Math.round(row.totalHours)}
                             </td>
-                            {row.cells.map((cell, cIdx) => (
-                            <td key={`c-${cIdx}`} className="p-1 text-center border-r border-slate-100 h-10 min-w-[50px]">
-                                {cell.hours > 0 && (
-                                    <div 
-                                        className={`h-[80%] w-full rounded-sm flex items-center justify-center text-[9px] border opacity-80 ${PHASE_COLORS[cell.phase || ''] || 'bg-gray-100'}`}
-                                        title={`${cell.phase}: ${cell.hours} hrs`}
-                                    >
-                                        {cell.hours}
+                            {row.cells.map((cell, cIdx) => {
+                                const isEditing = editingCell?.id === row.rowId && editingCell?.date === cell.date && editingCell?.type === 'staff';
+                                
+                                return (
+                                <td 
+                                    key={`c-${cIdx}`} 
+                                    className={`p-1 text-center border-r border-slate-100 h-10 min-w-[50px] relative cursor-pointer hover:bg-indigo-50/50`}
+                                    onClick={() => setEditingCell({ id: row.rowId, date: cell.date, type: 'staff' })}
+                                >
+                                {isEditing ? (
+                                    <div className="absolute inset-0 z-50 p-0.5">
+                                        <EditCellInput 
+                                            initialValue={cell.hours}
+                                            type="hours"
+                                            onSave={(val) => {
+                                                const num = parseFloat(val);
+                                                if (!isNaN(num)) {
+                                                    onCellUpdate(row.projectId, row.staffTypeId, row.staffIndex, cell.date, num, 'hours');
+                                                }
+                                                setEditingCell(null);
+                                            }}
+                                            onCancel={() => setEditingCell(null)}
+                                        />
                                     </div>
+                                ) : (
+                                    cell.hours > 0 ? (
+                                        <div 
+                                            className={`h-[80%] w-full rounded-sm flex items-center justify-center text-[9px] border ${cell.isOverride ? 'border-indigo-500 ring-1 ring-indigo-200 opacity-100 font-bold' : 'opacity-80'} ${PHASE_COLORS[cell.phase || ''] || 'bg-gray-100'}`}
+                                            title={`${cell.phase}: ${cell.hours} hrs${cell.isOverride ? ' (Manual)' : ''}`}
+                                        >
+                                            {cell.hours}
+                                        </div>
+                                    ) : (
+                                        <div className="h-full w-full hover:bg-slate-100"></div>
+                                    )
                                 )}
-                            </td>
-                            ))}
+                                </td>
+                            )})}
                         </tr>
                       ))}
                     </React.Fragment>

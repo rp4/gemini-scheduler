@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { GlobalConfig, ProjectInput } from './types';
+import { GlobalConfig, ProjectInput, PhaseName } from './types';
 import { DEFAULT_CONFIG, INITIAL_PROJECTS } from './constants';
 import { generateSchedule, optimizeSchedule } from './services/scheduleEngine';
 import { ProjectList } from './components/ProjectList';
@@ -20,12 +20,31 @@ const App: React.FC = () => {
 
   const handleOptimize = async () => {
     setIsOptimizing(true);
-    // Small timeout to allow UI to show loading state if needed before heavy sync calc
     setTimeout(() => {
       const optimizedProjects = optimizeSchedule(projects, config);
       setProjects(optimizedProjects);
       setIsOptimizing(false);
     }, 50);
+  };
+
+  const handleCellUpdate = (projectId: string, staffTypeId: string, staffIndex: number, date: string, value: any, type: 'hours' | 'phase') => {
+    setProjects(prev => prev.map(p => {
+      if (p.id !== projectId) return p;
+
+      const newOverrides = { ...p.overrides } || { phase: {}, staff: {} };
+      if (!newOverrides.phase) newOverrides.phase = {};
+      if (!newOverrides.staff) newOverrides.staff = {};
+
+      if (type === 'phase') {
+         newOverrides.phase[date] = value as PhaseName;
+      } else if (type === 'hours') {
+         const key = `${staffTypeId}-${staffIndex}`;
+         if (!newOverrides.staff[key]) newOverrides.staff[key] = {};
+         newOverrides.staff[key][date] = Number(value);
+      }
+
+      return { ...p, overrides: newOverrides };
+    }));
   };
 
   return (
@@ -72,7 +91,7 @@ const App: React.FC = () => {
 
         {/* Main Area: Schedule Table */}
         <section className="flex-1 h-full min-w-0">
-          <ScheduleTable data={scheduleData} />
+          <ScheduleTable data={scheduleData} onCellUpdate={handleCellUpdate} />
         </section>
       </main>
 
