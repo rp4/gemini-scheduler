@@ -147,8 +147,48 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, projects, co
     const utilization = totalCapacity > 0 ? (grandTotal / totalCapacity) * 100 : 0;
     const totalAvgWeekly = grandTotal / weeksCount;
 
-    return { totalAvgWeekly, totalOvertime, utilization };
-  }, [data, config.staffTypes]);
+    // Skills Score Calculation
+    // Sum of (Total Points for Project / Num Skills in Project) for all projects
+    let totalSkillScore = 0;
+    
+    // 1. Map Projects to assigned Staff (who have active hours in view)
+    const projectAssignments: Record<string, Set<string>> = {};
+
+    data.rows.forEach(row => {
+        if (row.totalHours > 0) {
+            if (!projectAssignments[row.projectId]) {
+                projectAssignments[row.projectId] = new Set();
+            }
+            projectAssignments[row.projectId].add(row.staffTypeId);
+        }
+    });
+
+    // 2. Calculate score per project
+    Object.keys(projectAssignments).forEach(projectId => {
+        const project = projects.find(p => p.id === projectId);
+        
+        if (project && project.requiredSkills && project.requiredSkills.length > 0) {
+            let projectPoints = 0;
+            const assignedStaffIds = projectAssignments[projectId];
+            
+            project.requiredSkills.forEach(skillName => {
+                assignedStaffIds.forEach(staffId => {
+                    const staff = config.staffTypes.find(s => s.id === staffId);
+                    const level = staff?.skills?.[skillName];
+                    
+                    if (level === 'Beginner') projectPoints += 1;
+                    else if (level === 'Intermediate') projectPoints += 2;
+                    else if (level === 'Advanced') projectPoints += 3;
+                });
+            });
+
+            // Normalize by number of skills required
+            totalSkillScore += (projectPoints / project.requiredSkills.length);
+        }
+    });
+
+    return { totalAvgWeekly, totalOvertime, utilization, totalSkillScore };
+  }, [data, config.staffTypes, projects]);
 
   // Grouping
   const groupedData = useMemo(() => {
@@ -580,8 +620,8 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, projects, co
 
          <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex items-center justify-between">
             <div>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Skills Matching</p>
-                <p className="text-xl font-bold text-slate-700">94%</p>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Skills Score</p>
+                <p className="text-xl font-bold text-slate-700">{stats.totalSkillScore.toFixed(1)}</p>
             </div>
             <div className="p-2 bg-blue-50 rounded-full">
                 <Target className="w-4 h-4 text-blue-600" />
