@@ -227,10 +227,13 @@ export const generateSchedule = (
             }
         });
 
-        const calculatedSplits = Math.ceil(maxWeeklyLoadCalculated / staff.maxHoursPerWeek);
+        // We disable automatic splitting based on capacity overflow.
+        // Users can manually add splits via overrides if they want a second row for the same person/role.
+        const calculatedSplits = 1;
+        
         // Ensure at least 1 row if we have calculated load > 0, otherwise 0 unless overrides exist
         let numSplits = Math.max(calculatedSplits, maxOverrideIndex);
-        if (numSplits === 0 && maxWeeklyLoadCalculated > 0) numSplits = 1;
+        if (maxWeeklyLoadCalculated === 0 && maxOverrideIndex === 0) numSplits = 0;
 
         for (let i = 0; i < numSplits; i++) {
             const staffIndex = i + 1;

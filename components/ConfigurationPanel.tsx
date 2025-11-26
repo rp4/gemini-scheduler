@@ -1,6 +1,8 @@
+
 import React from 'react';
 import { GlobalConfig, PhaseName, StaffType } from '../types';
-import { X, Settings, Users, PieChart, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { TEAMS } from '../constants';
+import { X, Settings, Users, PieChart, AlertCircle, CheckCircle2, Trash2, Plus, User } from 'lucide-react';
 
 interface ConfigurationPanelProps {
   config: GlobalConfig;
@@ -32,6 +34,58 @@ export const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({ config, 
     setConfig({ ...config, staffTypes: newStaff });
   };
 
+  const addStaffType = () => {
+    const newId = `role-${Date.now()}`;
+    const colors = [
+          'bg-purple-100 text-purple-800',
+          'bg-blue-100 text-blue-800', 
+          'bg-green-100 text-green-800', 
+          'bg-amber-100 text-amber-800', 
+          'bg-rose-100 text-rose-800',
+          'bg-cyan-100 text-cyan-800',
+          'bg-indigo-100 text-indigo-800'
+    ];
+    const color = colors[config.staffTypes.length % colors.length];
+
+    const newStaff: StaffType = {
+        id: newId,
+        name: 'New Staff Member',
+        role: 'New Role',
+        maxHoursPerWeek: 40,
+        color,
+        team: TEAMS[0] || 'General'
+    };
+
+    // Update phases to include this new staff with 0% allocation
+    const updatedPhases = config.phases.map(p => ({
+        ...p,
+        staffAllocation: [...p.staffAllocation, { staffTypeId: newId, percentage: 0 }]
+    }));
+
+    setConfig({
+        ...config,
+        staffTypes: [...config.staffTypes, newStaff],
+        phases: updatedPhases
+    });
+  };
+
+  const deleteStaffType = (id: string) => {
+    // Remove from staffTypes
+    const newStaffTypes = config.staffTypes.filter(s => s.id !== id);
+    
+    // Remove from phases allocations
+    const newPhases = config.phases.map(p => ({
+        ...p,
+        staffAllocation: p.staffAllocation.filter(sa => sa.staffTypeId !== id)
+    }));
+
+    setConfig({
+        ...config,
+        staffTypes: newStaffTypes,
+        phases: newPhases
+    });
+  };
+
   const totalBudgetPercent = config.phases.reduce((acc, p) => acc + p.percentBudget, 0);
   const isBudgetValid = Math.abs(totalBudgetPercent - 100) < 0.1;
 
@@ -52,28 +106,79 @@ export const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({ config, 
           
           {/* Staff Config Section */}
           <section>
-            <h3 className="text-md font-bold text-slate-800 mb-4 flex items-center gap-2 border-b pb-2">
-              <Users className="w-4 h-4" />
-              Staff Roles & Constraints
-            </h3>
+            <div className="flex justify-between items-center mb-4 border-b pb-2">
+                <h3 className="text-md font-bold text-slate-800 flex items-center gap-2">
+                    <Users className="w-4 h-4" />
+                    Staff Roles & Constraints
+                </h3>
+                <button 
+                    onClick={addStaffType}
+                    className="text-xs flex items-center gap-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 hover:text-indigo-700 px-2 py-1 rounded-md font-medium transition-colors"
+                >
+                    <Plus className="w-3 h-3" />
+                    Add Role
+                </button>
+            </div>
+            
             <div className="space-y-4">
               {config.staffTypes.map((staff) => (
-                <div key={staff.id} className="grid grid-cols-12 gap-4 items-center p-3 bg-slate-50 rounded-lg border border-slate-100">
-                   <div className="col-span-6">
-                     <span className={`inline-block w-3 h-3 rounded-full mr-2 ${staff.color.split(' ')[0]}`}></span>
-                     <span className="font-medium text-sm">{staff.name}</span>
-                   </div>
-                   <div className="col-span-6 flex items-center gap-2">
-                     <label className="text-xs text-slate-500 whitespace-nowrap">Max Hrs/Wk:</label>
-                     <input 
-                        type="number" 
-                        className="w-20 px-2 py-1 border rounded text-sm"
-                        value={staff.maxHoursPerWeek}
-                        onChange={(e) => updateStaffType(staff.id, 'maxHoursPerWeek', parseInt(e.target.value))}
-                     />
-                   </div>
+                <div key={staff.id} className="p-3 bg-slate-50 rounded-lg border border-slate-200 shadow-sm group hover:border-indigo-300 transition-all">
+                    <div className="flex items-center gap-3 mb-3">
+                        <div className={`w-3 h-3 rounded-full shrink-0 ${staff.color.split(' ')[0]}`}></div>
+                        <div className="flex-1">
+                            <label className="text-[9px] uppercase tracking-wider text-slate-400 font-bold block mb-0.5">Role Title</label>
+                            <input 
+                                type="text"
+                                className="w-full font-bold text-slate-700 bg-transparent border-b border-transparent hover:border-indigo-200 focus:border-indigo-500 outline-none text-sm px-0 transition-colors placeholder:font-normal placeholder:text-slate-400"
+                                value={staff.role}
+                                placeholder="Role Title (e.g. Audit Lead)"
+                                onChange={(e) => updateStaffType(staff.id, 'role', e.target.value)}
+                            />
+                        </div>
+                        <button 
+                            onClick={() => deleteStaffType(staff.id)}
+                            className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors self-start mt-2"
+                            title="Delete Role"
+                        >
+                            <Trash2 className="w-4 h-4" />
+                        </button>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-[9px] uppercase tracking-wider text-slate-400 font-bold block mb-1">Representative Name</label>
+                            <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded px-2 py-1.5 focus-within:ring-1 focus-within:ring-indigo-500 focus-within:border-indigo-500">
+                                <User className="w-3 h-3 text-slate-400" />
+                                <input 
+                                    type="text"
+                                    className="w-full text-xs text-slate-600 outline-none bg-transparent placeholder:text-slate-300"
+                                    value={staff.name}
+                                    placeholder="Staff Name"
+                                    onChange={(e) => updateStaffType(staff.id, 'name', e.target.value)}
+                                />
+                            </div>
+                        </div>
+                        <div>
+                             <label className="text-[9px] uppercase tracking-wider text-slate-400 font-bold block mb-1">Capacity</label>
+                             <div className="flex items-center gap-2">
+                                <input 
+                                    type="number" 
+                                    className="w-full px-2 py-1.5 border border-slate-200 rounded text-xs bg-white focus:ring-1 focus:ring-indigo-500 outline-none"
+                                    value={staff.maxHoursPerWeek}
+                                    onChange={(e) => updateStaffType(staff.id, 'maxHoursPerWeek', parseInt(e.target.value))}
+                                />
+                                <span className="text-xs text-slate-400 shrink-0">hrs/wk</span>
+                             </div>
+                        </div>
+                    </div>
                 </div>
               ))}
+              
+              {config.staffTypes.length === 0 && (
+                  <div className="text-center p-8 bg-slate-50 border border-dashed border-slate-200 rounded-lg text-slate-400 text-sm">
+                      No roles defined. Click "Add Role" to start.
+                  </div>
+              )}
             </div>
           </section>
 
@@ -147,7 +252,9 @@ export const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({ config, 
                           const val = allocation ? allocation.percentage : 0;
                           return (
                             <div key={staff.id} className="flex items-center justify-between text-sm">
-                               <span className="text-slate-600 w-1/3 text-xs">{staff.name}</span>
+                               <span className="text-slate-600 w-1/3 text-xs truncate" title={staff.name}>
+                                    {staff.role || staff.name}
+                               </span>
                                <div className="flex-1 mx-3 flex items-center">
                                 <input 
                                     type="range" 

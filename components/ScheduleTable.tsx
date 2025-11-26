@@ -56,6 +56,10 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, projects, co
     return map;
   }, [data.rows]);
 
+  const uniqueRoles = useMemo(() => {
+    return Array.from(new Set(config.staffTypes.map(s => s.role))).filter(Boolean).sort();
+  }, [config.staffTypes]);
+
   const toggleGroup = (id: string) => {
     const newSet = new Set(expandedGroups);
     if (newSet.has(id)) {
@@ -570,10 +574,31 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, projects, co
                                 {viewMode === 'project' ? '↳ Assignment' : row.projectName}
                             </td>
                             <td className="sticky left-[200px] z-10 bg-white p-2 border-r border-slate-200 text-slate-600 truncate text-xs">
-                                {viewMode === 'project' ? 
-                                    `${row.staffRole} ${row.staffIndex > 1 ? '#' + row.staffIndex : ''}` : 
-                                    row.staffRole
-                                }
+                                <div className="flex items-center gap-1">
+                                    <select
+                                        className="w-full bg-transparent border border-transparent hover:border-slate-300 rounded px-1 py-0.5 text-xs text-slate-600 focus:ring-1 focus:ring-indigo-500 outline-none cursor-pointer transition-all -ml-1"
+                                        value={row.staffRole}
+                                        onChange={(e) => {
+                                            const newRole = e.target.value;
+                                            const currentStaff = config.staffTypes.find(s => s.id === row.staffTypeId);
+                                            // Attempt to assign to someone in the same team with the new role
+                                            const candidate = config.staffTypes.find(s => s.role === newRole && s.team === currentStaff?.team) 
+                                                           || config.staffTypes.find(s => s.role === newRole);
+                                            
+                                            if (candidate && candidate.id !== row.staffTypeId) {
+                                                onAssignmentChange(row.projectId, row.staffTypeId, candidate.id);
+                                            }
+                                        }}
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        {uniqueRoles.map(r => (
+                                            <option key={r} value={r}>{r}</option>
+                                        ))}
+                                    </select>
+                                    {row.staffIndex > 1 && (
+                                        <span className="text-[10px] text-slate-400 font-mono shrink-0">#{row.staffIndex}</span>
+                                    )}
+                                </div>
                             </td>
                             <td className="sticky left-[350px] z-10 bg-white p-2 border-r border-slate-200 text-slate-400 truncate text-xs">
                                 {viewMode === 'project' ? (
