@@ -8,6 +8,7 @@ import { SkillList } from './components/SkillList';
 import { ScheduleTable, ViewMode } from './components/ScheduleTable';
 import { ConfigurationPanel } from './components/ConfigurationPanel';
 import { Calendar, Filter, LayoutGrid, Users, Award } from 'lucide-react';
+import { parseISO, startOfDay, endOfDay } from 'date-fns';
 
 const App: React.FC = () => {
   const [config, setConfig] = useState<GlobalConfig>(DEFAULT_CONFIG);
@@ -17,14 +18,45 @@ const App: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>('project');
 
   // Filter State (UI only)
-  const [fromDate, setFromDate] = useState('2024-12-31');
+  const [fromDate, setFromDate] = useState('2025-12-29'); // Set default to start of 2026 schedule week
   const [toDate, setToDate] = useState('2026-03-30');
   const [selectedTeam, setSelectedTeam] = useState('All Teams');
 
   // Recalculate schedule whenever config or projects change
   const scheduleData = useMemo(() => {
-    return generateSchedule(projects, config);
-  }, [projects, config]);
+    const fullData = generateSchedule(projects, config);
+    
+    // If no filter, return full data
+    if (!fromDate || !toDate) return fullData;
+
+    try {
+        const start = startOfDay(parseISO(fromDate));
+        const end = endOfDay(parseISO(toDate));
+
+        const validIndices: number[] = [];
+        const filteredHeaders = fullData.headers.filter((h, i) => {
+            const date = parseISO(h);
+            const isValid = date >= start && date <= end;
+            if (isValid) validIndices.push(i);
+            return isValid;
+        });
+
+        // Optimization: If all indices are valid, don't map over rows unnecessarily
+        if (validIndices.length === fullData.headers.length) {
+            return fullData;
+        }
+
+        const filteredRows = fullData.rows.map(row => ({
+            ...row,
+            cells: row.cells.filter((_, i) => validIndices.includes(i))
+        }));
+
+        return { headers: filteredHeaders, rows: filteredRows };
+    } catch (e) {
+        console.error("Error filtering dates", e);
+        return fullData;
+    }
+  }, [projects, config, fromDate, toDate]);
 
   const handleOptimize = async () => {
     setIsOptimizing(true);
