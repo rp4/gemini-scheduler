@@ -1,4 +1,5 @@
 
+
 import { GlobalConfig, PhaseName, StaffType, ProjectInput } from './types';
 
 export const TEAMS = ['Finance', 'IT', 'Operations', 'Compliance', 'General'];
@@ -23,9 +24,9 @@ export const SKILLS_LIST = [
 ];
 
 export const DEFAULT_STAFF_TYPES: StaffType[] = [
-  { id: 'pm', name: 'Portfolio Manager', maxHoursPerWeek: 10, color: 'bg-purple-100 text-purple-800', team: 'General' },
-  { id: 'lead', name: 'Audit Lead', maxHoursPerWeek: 40, color: 'bg-blue-100 text-blue-800', team: 'General' },
-  { id: 'staff', name: 'Staff Auditor', maxHoursPerWeek: 40, color: 'bg-green-100 text-green-800', team: 'General' },
+  { id: 'pm', name: 'Alex Johnson', maxHoursPerWeek: 10, color: 'bg-purple-100 text-purple-800', team: 'Finance' },
+  { id: 'lead', name: 'Sarah Miller', maxHoursPerWeek: 40, color: 'bg-blue-100 text-blue-800', team: 'IT' },
+  { id: 'staff', name: 'Mike Davis', maxHoursPerWeek: 40, color: 'bg-green-100 text-green-800', team: 'Operations' },
 ];
 
 export const DEFAULT_CONFIG: GlobalConfig = {

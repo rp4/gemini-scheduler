@@ -148,7 +148,6 @@ export const TeamMemberList: React.FC<TeamMemberListProps> = ({ config, setConfi
                   <div className={`w-2 h-10 rounded-full ${staff.color.split(' ')[0]}`}></div>
                   <div className="flex-1 grid grid-cols-12 gap-2 items-center">
                       <div className="col-span-7 flex flex-col">
-                           <label className="text-[10px] text-slate-400 block">Role Name</label>
                            <input 
                               type="text"
                               className="w-full font-medium text-slate-700 text-sm bg-transparent border-b border-transparent focus:border-indigo-300 outline-none transition-colors"
@@ -213,12 +212,12 @@ export const TeamMemberList: React.FC<TeamMemberListProps> = ({ config, setConfi
                 
                 <div className="p-6 space-y-5 flex-1 overflow-y-auto custom-scrollbar">
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1.5">Role / Name</label>
+                        <label className="block text-sm font-medium text-slate-700 mb-1.5">Name</label>
                         <input
                             type="text"
                             autoFocus
                             className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all placeholder:text-slate-400"
-                            placeholder="e.g., Senior Auditor"
+                            placeholder="e.g., John Doe"
                             value={newName}
                             onChange={(e) => setNewName(e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && handleSave()}
