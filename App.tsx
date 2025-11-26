@@ -90,15 +90,6 @@ const App: React.FC = () => {
   const handleOptimize = async () => {
     setIsOptimizing(true);
     setTimeout(() => {
-      // Optimization should respect the current context? 
-      // Usually optimization runs on all projects, but if we are filtering, we might only want to optimize visible ones.
-      // For safety, we optimize based on 'projectsDisplay' if filtered, or all projects?
-      // The optimization function takes a list of projects. 
-      // If we optimize a subset, we update the main state with the optimized subset merged back.
-      // However, for simplicity and ensuring global constraints, we'll optimize ALL projects for now,
-      // or we can optimize 'projectsDisplay' and merge. 
-      // Let's stick to optimizing 'projects' (all) to ensure global conflicts are resolved.
-      // If the user wants to optimize only a subset, it's complex because unlocked projects outside the filter might shift.
       const optimizedProjects = optimizeSchedule(projects, config);
       setProjects(optimizedProjects);
       setIsOptimizing(false);
@@ -188,7 +179,7 @@ const App: React.FC = () => {
     }));
   };
 
-  const handleAddAssignment = (projectId: string) => {
+  const handleAddAssignment = (projectId: string, specificStaffId?: string) => {
     setProjects(prev => prev.map(p => {
       if (p.id !== projectId) return p;
 
@@ -199,17 +190,22 @@ const App: React.FC = () => {
       currentPhases.forEach((ph: PhaseConfig) => ph.staffAllocation.forEach(s => assignedIds.add(s.staffTypeId)));
       
       // 2. Find a candidate
-      // Try 'placeholder' first, then any unassigned
-      let candidateId = 'placeholder';
-      if (assignedIds.has(candidateId)) {
-          const candidate = config.staffTypes.find(s => !assignedIds.has(s.id));
-          if (candidate) candidateId = candidate.id;
-          else {
-              // Fallback: if all types are assigned, user might need to create new staff type first. 
-              // Or we just don't add.
-              alert("All available staff roles are already assigned to this project.");
-              return p; 
+      let candidateId = specificStaffId || 'placeholder';
+      
+      if (!specificStaffId) {
+          if (assignedIds.has(candidateId)) {
+              const candidate = config.staffTypes.find(s => !assignedIds.has(s.id));
+              if (candidate) candidateId = candidate.id;
+              else {
+                  alert("All available staff roles are already assigned to this project.");
+                  return p; 
+              }
           }
+      } else {
+           if (assignedIds.has(candidateId)) {
+               alert("This staff member is already assigned to this project.");
+               return p;
+           }
       }
 
       // 3. Add to phases with 0% allocation (the engine will still display it)
@@ -233,16 +229,7 @@ const App: React.FC = () => {
             if (overrides.staff) {
                const newStaffOverrides = { ...overrides.staff };
                const keyToRemove = `${staffTypeId}-${staffIndex}`;
-               
-               // Remove specific key if it exists
                if (newStaffOverrides[keyToRemove]) delete newStaffOverrides[keyToRemove];
-               
-               // Also check for any other sparse overrides for this index (though our key structure is usually strict)
-               // In current engine, key is exactly `${staffTypeId}-${staffIndex}` for the row.
-               // However, overrides.staff stores Record<string, Record<string, number>>
-               // Key is "staffId-staffIndex". We just delete that entry.
-               if (newStaffOverrides[keyToRemove]) delete newStaffOverrides[keyToRemove];
-
                overrides.staff = newStaffOverrides;
             }
             return { ...p, overrides };
@@ -269,6 +256,63 @@ const App: React.FC = () => {
 
         return { ...p, phasesConfig: newPhases, overrides };
     }));
+  };
+
+  const handleAddProjectToMember = (staffTypeId: string) => {
+     // Find the first project where this member is NOT assigned
+     const candidateProject = projects.find(p => {
+         const currentPhases = p.phasesConfig || config.phases;
+         const isAssigned = currentPhases.some(ph => ph.staffAllocation.some(s => s.staffTypeId === staffTypeId));
+         return !isAssigned;
+     });
+
+     if (candidateProject) {
+         handleAddAssignment(candidateProject.id, staffTypeId);
+     } else {
+         alert("This member is already assigned to all active projects.");
+     }
+  };
+
+  const handleProjectChange = (staffTypeId: string, oldProjectId: string, newProjectId: string) => {
+     // We need to perform two operations atomically on the projects state to avoid race conditions
+     setProjects(prev => {
+        return prev.map(p => {
+            // 1. Remove from old project
+            if (p.id === oldProjectId) {
+                const currentPhases = p.phasesConfig || JSON.parse(JSON.stringify(config.phases));
+                const newPhases = currentPhases.map((ph: PhaseConfig) => ({
+                    ...ph,
+                    staffAllocation: ph.staffAllocation.filter(sa => sa.staffTypeId !== staffTypeId)
+                }));
+                // Clean overrides
+                const overrides = { ...(p.overrides || {}) };
+                if (overrides.staff) {
+                    const newStaffOverrides = { ...overrides.staff };
+                    Object.keys(newStaffOverrides).forEach(key => {
+                        if (key.startsWith(`${staffTypeId}-`)) delete newStaffOverrides[key];
+                    });
+                    overrides.staff = newStaffOverrides;
+                }
+                return { ...p, phasesConfig: newPhases, overrides };
+            }
+            
+            // 2. Add to new project
+            if (p.id === newProjectId) {
+                const currentPhases = p.phasesConfig || JSON.parse(JSON.stringify(config.phases));
+                // Check duplicate just in case
+                const alreadyAssigned = currentPhases.some((ph: PhaseConfig) => ph.staffAllocation.some(s => s.staffTypeId === staffTypeId));
+                if (!alreadyAssigned) {
+                    const newPhases = currentPhases.map((ph: PhaseConfig) => ({
+                        ...ph,
+                        staffAllocation: [...ph.staffAllocation, { staffTypeId: staffTypeId, percentage: 0 }]
+                    }));
+                    return { ...p, phasesConfig: newPhases };
+                }
+            }
+            
+            return p;
+        });
+     });
   };
 
   const renderSidebar = () => {
@@ -389,6 +433,8 @@ const App: React.FC = () => {
             onAssignmentChange={handleAssignmentChange}
             onAddAssignment={handleAddAssignment}
             onRemoveAssignment={handleRemoveAssignment}
+            onAddProjectToMember={handleAddProjectToMember}
+            onProjectChange={handleProjectChange}
             viewMode={viewMode}
             onViewModeChange={setViewMode}
           />
