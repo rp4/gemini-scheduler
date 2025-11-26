@@ -99,14 +99,56 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, projects, co
   const stats = useMemo(() => {
     const weeksCount = data.headers.length || 52;
     let grandTotal = 0;
+    
+    // Track hours per staff member per week to calculate overtime
+    // Key: "staffTypeId-staffIndex"
+    const staffLoads: Record<string, number[]> = {};
+    const uniqueStaffIds = new Set<string>();
 
     data.rows.forEach(row => {
+        uniqueStaffIds.add(row.staffTypeId);
+        // Sum for grand total
         grandTotal += row.cells.reduce((acc, cell) => acc + (cell.hours || 0), 0);
+        
+        // Aggregate for overtime
+        const staffKey = `${row.staffTypeId}-${row.staffIndex}`;
+        if (!staffLoads[staffKey]) {
+            staffLoads[staffKey] = new Array(data.headers.length).fill(0);
+        }
+        
+        row.cells.forEach((cell, idx) => {
+            staffLoads[staffKey][idx] += (cell.hours || 0);
+        });
+    });
+    
+    let totalOvertime = 0;
+    Object.entries(staffLoads).forEach(([key, weeklyHours]) => {
+        const [staffId] = key.split('-');
+        const staffConfig = config.staffTypes.find(s => s.id === staffId);
+        const maxHours = staffConfig ? staffConfig.maxHoursPerWeek : 40;
+        
+        weeklyHours.forEach(hours => {
+            if (hours > maxHours) {
+                totalOvertime += (hours - maxHours);
+            }
+        });
     });
 
+    // Calculate Utilization
+    // Utilization = Total Assigned Hours / (Sum of Max Capacity of All Active Staff * Weeks)
+    let totalCapacity = 0;
+    uniqueStaffIds.forEach(id => {
+        const staff = config.staffTypes.find(s => s.id === id);
+        if (staff) {
+            totalCapacity += (staff.maxHoursPerWeek * weeksCount);
+        }
+    });
+
+    const utilization = totalCapacity > 0 ? (grandTotal / totalCapacity) * 100 : 0;
     const totalAvgWeekly = grandTotal / weeksCount;
-    return { totalAvgWeekly };
-  }, [data]);
+
+    return { totalAvgWeekly, totalOvertime, utilization };
+  }, [data, config.staffTypes]);
 
   // Grouping
   const groupedData = useMemo(() => {
@@ -519,7 +561,7 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, projects, co
          <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex items-center justify-between">
             <div>
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Overtime Hours</p>
-                <p className="text-xl font-bold text-slate-700">42 <span className="text-xs font-normal text-slate-400">hrs</span></p>
+                <p className="text-xl font-bold text-slate-700">{Math.round(stats.totalOvertime).toLocaleString()} <span className="text-xs font-normal text-slate-400">hrs</span></p>
             </div>
             <div className="p-2 bg-amber-50 rounded-full">
                 <Clock className="w-4 h-4 text-amber-600" />
@@ -529,7 +571,7 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, projects, co
          <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex items-center justify-between">
             <div>
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Utilization</p>
-                <p className="text-xl font-bold text-slate-700">87%</p>
+                <p className="text-xl font-bold text-slate-700">{Math.round(stats.utilization)}%</p>
             </div>
             <div className="p-2 bg-emerald-50 rounded-full">
                 <Activity className="w-4 h-4 text-emerald-600" />
