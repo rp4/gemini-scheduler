@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { GlobalConfig, ProjectInput, PhaseName } from './types';
-import { DEFAULT_CONFIG, INITIAL_PROJECTS } from './constants';
+import { DEFAULT_CONFIG, INITIAL_PROJECTS, TEAMS } from './constants';
 import { generateSchedule, optimizeSchedule } from './services/scheduleEngine';
 import { ProjectList } from './components/ProjectList';
 import { TeamMemberList } from './components/TeamMemberList';
 import { ScheduleTable, ViewMode } from './components/ScheduleTable';
 import { ConfigurationPanel } from './components/ConfigurationPanel';
-import { Settings, Sparkles } from 'lucide-react';
+import { Calendar, Filter } from 'lucide-react';
 
 const App: React.FC = () => {
   const [config, setConfig] = useState<GlobalConfig>(DEFAULT_CONFIG);
@@ -14,6 +14,11 @@ const App: React.FC = () => {
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('project');
+
+  // Filter State (UI only)
+  const [fromDate, setFromDate] = useState('2024-12-31');
+  const [toDate, setToDate] = useState('2026-03-30');
+  const [selectedTeam, setSelectedTeam] = useState('All Teams');
 
   // Recalculate schedule whenever config or projects change
   const scheduleData = useMemo(() => {
@@ -64,10 +69,47 @@ const App: React.FC = () => {
           <h1 className="text-xl font-bold tracking-tight">AuditScheduler <span className="font-light text-indigo-300">Pro</span></h1>
         </div>
         
-        <div className="flex items-center gap-4">
-          <div className="text-sm text-slate-400 mr-4 hidden md:block">
-            Planning Year: <span className="text-white font-mono">{config.year}</span>
-          </div>
+        {/* Right Side Actions / Filters */}
+        <div className="flex items-center gap-3">
+            {/* Date Filters Group */}
+            <div className="hidden md:flex items-center bg-slate-800 rounded-lg p-1 border border-slate-700">
+                <div className="flex items-center gap-2 px-2 border-r border-slate-700">
+                    <Calendar className="w-3.5 h-3.5 text-indigo-400" />
+                    <span className="text-xs text-slate-400 font-medium">From:</span>
+                    <input 
+                        type="date" 
+                        value={fromDate}
+                        onChange={(e) => setFromDate(e.target.value)}
+                        className="bg-transparent text-xs text-white focus:outline-none w-[110px] [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:opacity-50 [&::-webkit-calendar-picker-indicator]:hover:opacity-100 cursor-pointer"
+                    />
+                </div>
+                <div className="flex items-center gap-2 px-2">
+                    <span className="text-xs text-slate-400 font-medium">To:</span>
+                    <input 
+                        type="date" 
+                        value={toDate}
+                        onChange={(e) => setToDate(e.target.value)}
+                        className="bg-transparent text-xs text-white focus:outline-none w-[110px] [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:opacity-50 [&::-webkit-calendar-picker-indicator]:hover:opacity-100 cursor-pointer"
+                    />
+                </div>
+            </div>
+
+            {/* Team Filter */}
+            <div className="flex items-center">
+                <div className="relative">
+                    <Filter className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <select 
+                        value={selectedTeam}
+                        onChange={(e) => setSelectedTeam(e.target.value)}
+                        className="pl-8 pr-3 py-1.5 bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 hover:border-slate-600 transition-all cursor-pointer appearance-none min-w-[120px]"
+                    >
+                        <option value="All Teams">All Teams</option>
+                        {TEAMS.map(team => (
+                            <option key={team} value={team}>{team}</option>
+                        ))}
+                    </select>
+                </div>
+            </div>
         </div>
       </header>
 
