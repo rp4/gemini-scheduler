@@ -165,6 +165,8 @@ export const generateSchedule = (
     // --- Pre-calculate Allocation Profiles per Phase ---
     // How many hours per week does a staff type get in a specific phase (normalized)?
     const phaseProfiles: Record<string, Record<string, number>> = {};
+    const allocatedStaffIds = new Set<string>();
+
     phases.forEach(p => {
         const totalPhaseHours = (project.budgetHours * p.percentBudget) / 100;
         const duration = Math.max(1, p.maxWeeks); // Avoid division by zero
@@ -173,6 +175,8 @@ export const generateSchedule = (
         phaseProfiles[p.name] = {};
         p.staffAllocation.forEach(sa => {
             phaseProfiles[p.name][sa.staffTypeId] = (weeklyPhaseHours * sa.percentage) / 100;
+            // Track explicit allocations (even if 0%)
+            allocatedStaffIds.add(sa.staffTypeId);
         });
     });
 
@@ -230,10 +234,11 @@ export const generateSchedule = (
         // We disable automatic splitting based on capacity overflow.
         // Users can manually add splits via overrides if they want a second row for the same person/role.
         const calculatedSplits = 1;
-        
-        // Ensure at least 1 row if we have calculated load > 0, otherwise 0 unless overrides exist
+        const isExplicitlyAllocated = allocatedStaffIds.has(staff.id);
+
+        // Ensure at least 1 row if we have calculated load > 0, OR explicit allocation, OR overrides exist
         let numSplits = Math.max(calculatedSplits, maxOverrideIndex);
-        if (maxWeeklyLoadCalculated === 0 && maxOverrideIndex === 0) numSplits = 0;
+        if (maxWeeklyLoadCalculated === 0 && maxOverrideIndex === 0 && !isExplicitlyAllocated) numSplits = 0;
 
         for (let i = 0; i < numSplits; i++) {
             const staffIndex = i + 1;
@@ -275,8 +280,8 @@ export const generateSchedule = (
                 }
             });
 
-            // Only add the row if it has content (or if it was forced by override index logic effectively)
-            if (numSplits > 0 && (hasAnyHours || staffIndex <= maxOverrideIndex)) {
+            // Only add the row if it has content (or if it was forced by override index logic effectively, or explicit allocation)
+            if (numSplits > 0 && (hasAnyHours || staffIndex <= maxOverrideIndex || (isExplicitlyAllocated && staffIndex === 1))) {
                 rows.push({
                     rowId: `${project.id}-${staff.id}-${i}`,
                     projectId: project.id,

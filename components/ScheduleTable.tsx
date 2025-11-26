@@ -2,7 +2,7 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { ScheduleData, PhaseName, ScheduleRow, ScheduleCell, ProjectInput, GlobalConfig } from '../types';
 import { format, parseISO } from 'date-fns';
-import { Download, TrendingUp, Users, Layers, User, ChevronRight, ChevronDown, Clock, Activity, Target, Award } from 'lucide-react';
+import { Download, TrendingUp, Users, Layers, User, ChevronRight, ChevronDown, Clock, Activity, Target, Award, Plus, Trash2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 export type ViewMode = 'project' | 'member' | 'skill';
@@ -13,6 +13,8 @@ interface ScheduleTableProps {
   config: GlobalConfig;
   onCellUpdate: (projectId: string, staffTypeId: string, staffIndex: number, date: string, value: any, type: 'hours' | 'phase') => void;
   onAssignmentChange: (projectId: string, oldStaffTypeId: string, newStaffTypeId: string) => void;
+  onAddAssignment?: (projectId: string) => void;
+  onRemoveAssignment?: (projectId: string, staffTypeId: string, staffIndex: number) => void;
   viewMode: ViewMode;
   onViewModeChange: (mode: ViewMode) => void;
 }
@@ -38,7 +40,17 @@ interface GroupedRow {
   children: ScheduleRow[];
 }
 
-export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, projects, config, onCellUpdate, onAssignmentChange, viewMode, onViewModeChange }) => {
+export const ScheduleTable: React.FC<ScheduleTableProps> = ({ 
+  data, 
+  projects, 
+  config, 
+  onCellUpdate, 
+  onAssignmentChange, 
+  onAddAssignment,
+  onRemoveAssignment,
+  viewMode, 
+  onViewModeChange 
+}) => {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   
   // Editing State
@@ -48,10 +60,9 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, projects, co
   const projectAssignments = useMemo(() => {
     const map: Record<string, Set<string>> = {};
     data.rows.forEach(row => {
-        if (row.totalHours > 0) {
-            if (!map[row.projectId]) map[row.projectId] = new Set();
-            map[row.projectId].add(row.staffTypeId);
-        }
+        // We track all assignments, even if 0 hours, to correctly filter dropdowns and prevent duplicates/vanishing rows
+        if (!map[row.projectId]) map[row.projectId] = new Set();
+        map[row.projectId].add(row.staffTypeId);
     });
     return map;
   }, [data.rows]);
@@ -504,7 +515,22 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, projects, co
                           </button>
                         </td>
                         <td className="sticky left-[200px] z-10 bg-slate-50/80 p-2 border-r border-slate-200 text-slate-500 italic text-xs">
-                           {viewMode === 'project' ? `${group.children.length} Assignments` : group.subLabel}
+                           <div className="flex items-center justify-between">
+                             <span>{viewMode === 'project' ? `${group.children.length} Assignments` : group.subLabel}</span>
+                             {viewMode === 'project' && group.projectId && onAddAssignment && (
+                               <button 
+                                 onClick={(e) => {
+                                   e.stopPropagation();
+                                   onAddAssignment(group.projectId!);
+                                   if (!isExpanded) toggleGroup(group.id);
+                                 }}
+                                 className="p-1 rounded bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors"
+                                 title="Add Assignment"
+                               >
+                                 <Plus className="w-3.5 h-3.5" />
+                               </button>
+                             )}
+                           </div>
                         </td>
                         <td className="sticky left-[350px] z-10 bg-slate-50/80 p-2 border-r border-slate-200 text-slate-500 italic text-xs">
                            -
@@ -568,10 +594,26 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, projects, co
                       </tr>
 
                       {/* Child Rows */}
-                      {isExpanded && group.children.map((row) => (
-                        <tr key={row.rowId} className="hover:bg-slate-50 border-b border-slate-100 bg-white">
+                      {isExpanded && group.children.map((row) => {
+                        const assignedToProject = projectAssignments[row.projectId] || new Set();
+                        return (
+                        <tr key={row.rowId} className="hover:bg-slate-50 border-b border-slate-100 bg-white group/row">
                             <td className="sticky left-0 z-10 bg-white p-2 pl-8 border-r border-slate-200 text-slate-600 truncate text-xs border-l-4 border-l-indigo-500">
-                                {viewMode === 'project' ? '↳ Assignment' : row.projectName}
+                                <div className="flex items-center justify-between">
+                                    <span>{viewMode === 'project' ? '↳ Assignment' : row.projectName}</span>
+                                    {viewMode === 'project' && onRemoveAssignment && (
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onRemoveAssignment(row.projectId, row.staffTypeId, row.staffIndex);
+                                            }}
+                                            className="text-slate-300 hover:text-red-500 hover:bg-red-50 rounded p-1 transition-colors opacity-0 group-hover/row:opacity-100"
+                                            title="Remove Assignment"
+                                        >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                    )}
+                                </div>
                             </td>
                             <td className="sticky left-[200px] z-10 bg-white p-2 border-r border-slate-200 text-slate-600 truncate text-xs">
                                 <div className="flex items-center gap-1">
@@ -581,12 +623,25 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, projects, co
                                         onChange={(e) => {
                                             const newRole = e.target.value;
                                             const currentStaff = config.staffTypes.find(s => s.id === row.staffTypeId);
-                                            // Attempt to assign to someone in the same team with the new role
-                                            const candidate = config.staffTypes.find(s => s.role === newRole && s.team === currentStaff?.team) 
-                                                           || config.staffTypes.find(s => s.role === newRole);
                                             
-                                            if (candidate && candidate.id !== row.staffTypeId) {
-                                                onAssignmentChange(row.projectId, row.staffTypeId, candidate.id);
+                                            // Find candidates with this role who are NOT already assigned to this project
+                                            const candidates = config.staffTypes.filter(s => s.role === newRole);
+                                            
+                                            // 1. Prefer same team, unassigned
+                                            let bestCandidate = candidates.find(s => s.team === currentStaff?.team && !assignedToProject.has(s.id));
+                                            
+                                            // 2. Prefer any team, unassigned
+                                            if (!bestCandidate) {
+                                                bestCandidate = candidates.find(s => !assignedToProject.has(s.id));
+                                            }
+
+                                            if (bestCandidate) {
+                                                onAssignmentChange(row.projectId, row.staffTypeId, bestCandidate.id);
+                                            } else {
+                                                // If all staff with this role are already assigned, we cannot switch safely without merging/vanishing.
+                                                // Or we simply don't switch the person, but that is confusing because role is tied to person.
+                                                // Alert the user.
+                                                alert(`All staff members with role '${newRole}' are already assigned to this project.`);
                                             }
                                         }}
                                         onClick={(e) => e.stopPropagation()}
@@ -608,11 +663,16 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, projects, co
                                         onChange={(e) => onAssignmentChange(row.projectId, row.staffTypeId, e.target.value)}
                                         onClick={(e) => e.stopPropagation()}
                                     >
-                                        {config.staffTypes.map(st => (
-                                            <option key={st.id} value={st.id}>
-                                                {st.name} {st.id === 'placeholder' ? '' : `(${st.role})`}
-                                            </option>
-                                        ))}
+                                        {config.staffTypes.map(st => {
+                                            // Filter out members who are already assigned to this project (exclude current selection)
+                                            if (assignedToProject.has(st.id) && st.id !== row.staffTypeId) return null;
+                                            
+                                            return (
+                                                <option key={st.id} value={st.id}>
+                                                    {st.name} {st.id === 'placeholder' ? '' : `(${st.role})`}
+                                                </option>
+                                            );
+                                        })}
                                     </select>
                                 ) : (
                                     row.staffTypeName
@@ -662,7 +722,7 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, projects, co
                                 </td>
                             )})}
                         </tr>
-                      ))}
+                      )})}
                     </React.Fragment>
                   );
                 })

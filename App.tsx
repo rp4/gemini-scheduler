@@ -188,6 +188,89 @@ const App: React.FC = () => {
     }));
   };
 
+  const handleAddAssignment = (projectId: string) => {
+    setProjects(prev => prev.map(p => {
+      if (p.id !== projectId) return p;
+
+      const currentPhases = p.phasesConfig || JSON.parse(JSON.stringify(config.phases));
+      
+      // 1. Identify currently assigned staff
+      const assignedIds = new Set<string>();
+      currentPhases.forEach((ph: PhaseConfig) => ph.staffAllocation.forEach(s => assignedIds.add(s.staffTypeId)));
+      
+      // 2. Find a candidate
+      // Try 'placeholder' first, then any unassigned
+      let candidateId = 'placeholder';
+      if (assignedIds.has(candidateId)) {
+          const candidate = config.staffTypes.find(s => !assignedIds.has(s.id));
+          if (candidate) candidateId = candidate.id;
+          else {
+              // Fallback: if all types are assigned, user might need to create new staff type first. 
+              // Or we just don't add.
+              alert("All available staff roles are already assigned to this project.");
+              return p; 
+          }
+      }
+
+      // 3. Add to phases with 0% allocation (the engine will still display it)
+      const newPhases = currentPhases.map((ph: PhaseConfig) => ({
+          ...ph,
+          staffAllocation: [...ph.staffAllocation, { staffTypeId: candidateId, percentage: 0 }]
+      }));
+      
+      return { ...p, phasesConfig: newPhases };
+    }));
+  };
+
+  const handleRemoveAssignment = (projectId: string, staffTypeId: string, staffIndex: number) => {
+    setProjects(prev => prev.map(p => {
+        if (p.id !== projectId) return p;
+
+        // If index > 1, it implies a split row driven by overrides.
+        // We remove the overrides for this specific index to delete the split row.
+        if (staffIndex > 1) {
+            const overrides = { ...(p.overrides || {}) };
+            if (overrides.staff) {
+               const newStaffOverrides = { ...overrides.staff };
+               const keyToRemove = `${staffTypeId}-${staffIndex}`;
+               
+               // Remove specific key if it exists
+               if (newStaffOverrides[keyToRemove]) delete newStaffOverrides[keyToRemove];
+               
+               // Also check for any other sparse overrides for this index (though our key structure is usually strict)
+               // In current engine, key is exactly `${staffTypeId}-${staffIndex}` for the row.
+               // However, overrides.staff stores Record<string, Record<string, number>>
+               // Key is "staffId-staffIndex". We just delete that entry.
+               if (newStaffOverrides[keyToRemove]) delete newStaffOverrides[keyToRemove];
+
+               overrides.staff = newStaffOverrides;
+            }
+            return { ...p, overrides };
+        }
+
+        // If index == 1, remove the staff member from the project entirely
+        const currentPhases = p.phasesConfig || JSON.parse(JSON.stringify(config.phases));
+        const newPhases = currentPhases.map((ph: PhaseConfig) => ({
+            ...ph,
+            staffAllocation: ph.staffAllocation.filter(sa => sa.staffTypeId !== staffTypeId)
+        }));
+
+        // Clean up ALL overrides for this staff type
+        const overrides = { ...(p.overrides || {}) };
+        if (overrides.staff) {
+            const newStaffOverrides = { ...overrides.staff };
+            Object.keys(newStaffOverrides).forEach(key => {
+                if (key.startsWith(`${staffTypeId}-`)) {
+                    delete newStaffOverrides[key];
+                }
+            });
+            overrides.staff = newStaffOverrides;
+        }
+
+        return { ...p, phasesConfig: newPhases, overrides };
+    }));
+  };
+
   const renderSidebar = () => {
       switch(viewMode) {
           case 'skill':
@@ -304,6 +387,8 @@ const App: React.FC = () => {
             config={config}
             onCellUpdate={handleCellUpdate} 
             onAssignmentChange={handleAssignmentChange}
+            onAddAssignment={handleAddAssignment}
+            onRemoveAssignment={handleRemoveAssignment}
             viewMode={viewMode}
             onViewModeChange={setViewMode}
           />
