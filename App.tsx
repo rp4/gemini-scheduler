@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { GlobalConfig, ProjectInput, PhaseName, PhaseConfig } from './types';
 import { DEFAULT_CONFIG, INITIAL_PROJECTS, TEAMS } from './constants';
@@ -22,12 +23,40 @@ const App: React.FC = () => {
   const [toDate, setToDate] = useState('2026-03-30');
   const [selectedTeam, setSelectedTeam] = useState('All Teams');
 
-  // Recalculate schedule whenever config or projects change
+  // Derive the display list of projects based on team filter.
+  // This is used for the Project List Sidebar and the ScheduleTable (in Skill view).
+  const projectsDisplay = useMemo(() => {
+    if (selectedTeam === 'All Teams') return projects;
+    return projects.filter(p => p.team === selectedTeam);
+  }, [projects, selectedTeam]);
+
+  // Recalculate schedule whenever config, projects, or filters change
   const scheduleData = useMemo(() => {
-    const fullData = generateSchedule(projects, config);
+    // 1. Determine which projects to process in the engine
+    // If in Project or Skill view, we only want to process projects matching the selected team.
+    // If in Member view, we need ALL projects to ensure member total hours/utilization are calculated correctly across all their work.
+    let projectsToProcess = projects;
+    if (selectedTeam !== 'All Teams' && (viewMode === 'project' || viewMode === 'skill')) {
+        projectsToProcess = projects.filter(p => p.team === selectedTeam);
+    }
     
-    // If no filter, return full data
-    if (!fromDate || !toDate) return fullData;
+    const fullData = generateSchedule(projectsToProcess, config);
+    
+    // 2. Filter Rows for Member View
+    // If in Member view, we now filter the output rows to only show members of the selected team.
+    let processedRows = fullData.rows;
+    if (selectedTeam !== 'All Teams' && viewMode === 'member') {
+        const teamMemberIds = config.staffTypes
+            .filter(s => s.team === selectedTeam)
+            .map(s => s.id);
+        processedRows = processedRows.filter(r => teamMemberIds.includes(r.staffTypeId));
+    }
+
+    // 3. Date Filtering
+    // Filter headers and cell data based on date range
+    if (!fromDate || !toDate) {
+        return { headers: fullData.headers, rows: processedRows };
+    }
 
     try {
         const start = startOfDay(parseISO(fromDate));
@@ -43,10 +72,10 @@ const App: React.FC = () => {
 
         // Optimization: If all indices are valid, don't map over rows unnecessarily
         if (validIndices.length === fullData.headers.length) {
-            return fullData;
+            return { headers: filteredHeaders, rows: processedRows };
         }
 
-        const filteredRows = fullData.rows.map(row => ({
+        const filteredRows = processedRows.map(row => ({
             ...row,
             cells: row.cells.filter((_, i) => validIndices.includes(i))
         }));
@@ -54,13 +83,22 @@ const App: React.FC = () => {
         return { headers: filteredHeaders, rows: filteredRows };
     } catch (e) {
         console.error("Error filtering dates", e);
-        return fullData;
+        return { headers: fullData.headers, rows: processedRows };
     }
-  }, [projects, config, fromDate, toDate]);
+  }, [projects, config, fromDate, toDate, selectedTeam, viewMode]);
 
   const handleOptimize = async () => {
     setIsOptimizing(true);
     setTimeout(() => {
+      // Optimization should respect the current context? 
+      // Usually optimization runs on all projects, but if we are filtering, we might only want to optimize visible ones.
+      // For safety, we optimize based on 'projectsDisplay' if filtered, or all projects?
+      // The optimization function takes a list of projects. 
+      // If we optimize a subset, we update the main state with the optimized subset merged back.
+      // However, for simplicity and ensuring global constraints, we'll optimize ALL projects for now,
+      // or we can optimize 'projectsDisplay' and merge. 
+      // Let's stick to optimizing 'projects' (all) to ensure global conflicts are resolved.
+      // If the user wants to optimize only a subset, it's complex because unlocked projects outside the filter might shift.
       const optimizedProjects = optimizeSchedule(projects, config);
       setProjects(optimizedProjects);
       setIsOptimizing(false);
@@ -160,7 +198,7 @@ const App: React.FC = () => {
           default:
               return (
                 <ProjectList 
-                    projects={projects} 
+                    projects={projectsDisplay} 
                     setProjects={setProjects} 
                     currentConfig={config} 
                     onOptimize={handleOptimize}
@@ -262,7 +300,7 @@ const App: React.FC = () => {
         <section className="flex-1 h-full min-w-0">
           <ScheduleTable 
             data={scheduleData} 
-            projects={projects}
+            projects={projectsDisplay}
             config={config}
             onCellUpdate={handleCellUpdate} 
             onAssignmentChange={handleAssignmentChange}

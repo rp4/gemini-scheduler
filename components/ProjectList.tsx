@@ -34,7 +34,7 @@ export const ProjectList: React.FC<ProjectListProps> = ({
     setEditingProjectId(null);
     setNewProjectName('');
     setNewProjectBudget(200);
-    // Calculate a smart default for start week (max existing + 4, or 0)
+    // Calculate a smart default for start week based on visible projects
     const nextOffset = projects.length > 0 ? Math.max(...projects.map(p => p.startWeekOffset)) + 4 : 0;
     setNewProjectOffset(nextOffset);
     setNewProjectTeam(TEAMS[0]);
@@ -56,8 +56,8 @@ export const ProjectList: React.FC<ProjectListProps> = ({
     if (!newProjectName.trim()) return;
 
     if (editingProjectId) {
-        // Update existing project
-        setProjects(projects.map(p => p.id === editingProjectId ? {
+        // Update existing project - use functional update for safety with filtered lists
+        setProjects(prev => prev.map(p => p.id === editingProjectId ? {
             ...p,
             name: newProjectName,
             budgetHours: newProjectBudget,
@@ -82,7 +82,7 @@ export const ProjectList: React.FC<ProjectListProps> = ({
             team: newProjectTeam,
             requiredSkills: newProjectSkills
         };
-        setProjects([...projects, project]);
+        setProjects(prev => [...prev, project]);
     }
     
     // Reset and close
@@ -95,11 +95,11 @@ export const ProjectList: React.FC<ProjectListProps> = ({
   };
 
   const removeProject = (id: string) => {
-    setProjects(projects.filter(p => p.id !== id));
+    setProjects(prev => prev.filter(p => p.id !== id));
   };
 
   const updateProject = (id: string, field: keyof ProjectInput, value: any) => {
-    setProjects(projects.map(p => p.id === id ? { ...p, [field]: value } : p));
+    setProjects(prev => prev.map(p => p.id === id ? { ...p, [field]: value } : p));
   };
 
   const toggleSkill = (skill: string) => {
@@ -191,7 +191,7 @@ export const ProjectList: React.FC<ProjectListProps> = ({
           {projects.length === 0 && (
             <div className="flex flex-col items-center justify-center h-40 text-slate-400 border-2 border-dashed border-slate-100 rounded-lg">
                 <Calendar className="w-8 h-8 mb-2 opacity-20" />
-                <span className="text-sm italic">No projects added yet.</span>
+                <span className="text-sm italic">No projects found.</span>
             </div>
           )}
         </div>
