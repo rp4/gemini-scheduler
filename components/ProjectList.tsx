@@ -227,7 +227,7 @@ export const ProjectList: React.FC<ProjectListProps> = ({
                 <Trash2 className="w-4 h-4" />
               </button>
             </div>
-          )}})}
+          )})}
           
           {projects.length === 0 && (
             <div className="flex flex-col items-center justify-center h-40 text-slate-400 border-2 border-dashed border-slate-100 rounded-lg">

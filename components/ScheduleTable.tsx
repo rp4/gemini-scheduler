@@ -52,6 +52,85 @@ interface DragState {
   meta: { projectId?: string; staffTypeId?: string; staffIndex?: number };
 }
 
+// Moved outside to prevent re-mounting and focus loss on render
+const EditCellInput = ({ 
+    initialValue, 
+    type, 
+    onSave, 
+    onCancel 
+}: { 
+    initialValue: any, 
+    type: 'hours' | 'phase', 
+    onSave: (val: any) => void, 
+    onCancel: () => void 
+}) => {
+    const [val, setVal] = useState(initialValue);
+    const inputRef = useRef<HTMLInputElement | HTMLSelectElement>(null);
+
+    useEffect(() => {
+        if (inputRef.current) {
+            inputRef.current.focus();
+            if (type === 'hours' && inputRef.current instanceof HTMLInputElement) {
+                inputRef.current.select();
+            }
+        }
+    }, [type]);
+
+    const handleBlur = () => {
+        if (type !== 'phase') {
+            onSave(val);
+        } else {
+            onCancel();
+        }
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            if (type === 'phase') {
+                onSave(val);
+            } else {
+                inputRef.current?.blur();
+            }
+        } else if (e.key === 'Escape') {
+            onCancel();
+        }
+    };
+
+    if (type === 'phase') {
+        return (
+            <select
+                ref={inputRef as any}
+                className="w-full h-full text-[10px] p-0 border-none outline-none bg-white focus:ring-2 focus:ring-indigo-500 rounded"
+                value={val}
+                onChange={(e) => {
+                  const newVal = e.target.value;
+                  setVal(newVal);
+                  onSave(newVal); 
+                }}
+                onBlur={handleBlur}
+                onKeyDown={handleKeyDown}
+                onClick={(e) => e.stopPropagation()} 
+            >
+                <option value="" disabled>Select Phase...</option>
+                {PHASE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+            </select>
+        );
+    }
+
+    return (
+        <input
+            ref={inputRef as any}
+            type="number"
+            className="w-full h-full text-center text-xs p-0 border-none outline-none bg-white focus:ring-2 focus:ring-indigo-500 rounded"
+            value={val}
+            onChange={(e) => setVal(e.target.value)}
+            onBlur={handleBlur}
+            onKeyDown={handleKeyDown}
+            onClick={(e) => e.stopPropagation()}
+        />
+    );
+};
+
 export const ScheduleTable: React.FC<ScheduleTableProps> = ({ 
   data, 
   projects, 
@@ -154,6 +233,32 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
   const handleViewModeChange = (mode: ViewMode) => {
     onViewModeChange(mode);
     setExpandedGroups(new Set()); 
+  };
+
+  const handleExport = () => {
+    const wb = XLSX.utils.book_new();
+    const wsData = [];
+    
+    // Create Headers
+    // Project Name, Role, Staff Name, Total Hours, [Dates...]
+    const headers = ['Project Name', 'Role', 'Staff Name', 'Total Hours', ...data.headers.map(d => format(parseISO(d), 'yyyy-MM-dd'))];
+    wsData.push(headers);
+
+    // Create Rows
+    data.rows.forEach(row => {
+        const rowData = [
+            row.projectName,
+            row.staffRole,
+            row.staffTypeName,
+            row.totalHours,
+            ...row.cells.map(c => c.hours)
+        ];
+        wsData.push(rowData);
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    XLSX.utils.book_append_sheet(wb, ws, "Schedule");
+    XLSX.writeFile(wb, `AuditSchedule_${format(new Date(), 'yyyyMMdd')}.xlsx`);
   };
 
   // Stats
@@ -287,85 +392,6 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
     });
     return Object.values(groups);
   }, [data, viewMode]);
-
-  // Editing Component
-  const EditCellInput = ({ 
-      initialValue, 
-      type, 
-      onSave, 
-      onCancel 
-  }: { 
-      initialValue: any, 
-      type: 'hours' | 'phase', 
-      onSave: (val: any) => void, 
-      onCancel: () => void 
-  }) => {
-      const [val, setVal] = useState(initialValue);
-      const inputRef = useRef<HTMLInputElement | HTMLSelectElement>(null);
-
-      useEffect(() => {
-          if (inputRef.current) {
-              inputRef.current.focus();
-              if (type === 'hours' && inputRef.current instanceof HTMLInputElement) {
-                  inputRef.current.select();
-              }
-          }
-      }, [type]);
-
-      const handleBlur = () => {
-          if (type !== 'phase') {
-              onSave(val);
-          } else {
-              onCancel();
-          }
-      };
-
-      const handleKeyDown = (e: React.KeyboardEvent) => {
-          if (e.key === 'Enter') {
-              if (type === 'phase') {
-                  onSave(val);
-              } else {
-                  inputRef.current?.blur();
-              }
-          } else if (e.key === 'Escape') {
-              onCancel();
-          }
-      };
-
-      if (type === 'phase') {
-          return (
-              <select
-                  ref={inputRef as any}
-                  className="w-full h-full text-[10px] p-0 border-none outline-none bg-white focus:ring-2 focus:ring-indigo-500 rounded"
-                  value={val}
-                  onChange={(e) => {
-                    const newVal = e.target.value;
-                    setVal(newVal);
-                    onSave(newVal); 
-                  }}
-                  onBlur={handleBlur}
-                  onKeyDown={handleKeyDown}
-                  onClick={(e) => e.stopPropagation()} 
-              >
-                  <option value="" disabled>Select Phase...</option>
-                  {PHASE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-              </select>
-          );
-      }
-
-      return (
-          <input
-              ref={inputRef as any}
-              type="number"
-              className="w-full h-full text-center text-xs p-0 border-none outline-none bg-white focus:ring-2 focus:ring-indigo-500 rounded"
-              value={val}
-              onChange={(e) => setVal(e.target.value)}
-              onBlur={handleBlur}
-              onKeyDown={handleKeyDown}
-              onClick={(e) => e.stopPropagation()}
-          />
-      );
-  };
 
   const renderContent = () => {
     if (viewMode === 'skill') {
@@ -807,44 +833,59 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
     <div className="flex flex-col h-full bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
       
       {/* Stats Dashboard */}
-      <div className="p-4 bg-slate-50 border-b border-slate-200 grid grid-cols-1 md:grid-cols-4 gap-4">
-         <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex items-center justify-between">
-            <div>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Avg Hrs/Wk</p>
-                <p className="text-2xl font-bold text-slate-800">{stats.totalAvgWeekly.toFixed(1)}</p>
-            </div>
-            <div className="p-2 bg-indigo-50 rounded-full">
-                <TrendingUp className="w-5 h-5 text-indigo-600" />
-            </div>
-         </div>
-         
-         <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex items-center justify-between">
-            <div>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Overtime Hours</p>
-                <p className="text-xl font-bold text-slate-700">{Math.round(stats.totalOvertime).toLocaleString()} <span className="text-xs font-normal text-slate-400">hrs</span></p>
-            </div>
-            <div className="p-2 bg-amber-50 rounded-full">
-                <Clock className="w-4 h-4 text-amber-600" />
-            </div>
+      <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-col gap-4">
+         <div className="flex justify-between items-center">
+              <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                <TrendingUp className="w-4 h-4" /> Performance Metrics
+              </h3>
+              <button 
+                  onClick={handleExport}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-300 rounded text-xs font-medium text-slate-700 hover:bg-slate-50 hover:text-indigo-600 transition-colors shadow-sm"
+              >
+                 <Download className="w-3.5 h-3.5" />
+                 Export to Excel
+              </button>
          </div>
 
-         <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex items-center justify-between">
-            <div>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Utilization</p>
-                <p className="text-xl font-bold text-slate-700">{Math.round(stats.utilization)}%</p>
+         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex items-center justify-between">
+                <div>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Avg Hrs/Wk</p>
+                    <p className="text-2xl font-bold text-slate-800">{stats.totalAvgWeekly.toFixed(1)}</p>
+                </div>
+                <div className="p-2 bg-indigo-50 rounded-full">
+                    <TrendingUp className="w-5 h-5 text-indigo-600" />
+                </div>
             </div>
-            <div className="p-2 bg-emerald-50 rounded-full">
-                <Activity className="w-4 h-4 text-emerald-600" />
+            
+            <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex items-center justify-between">
+                <div>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Overtime Hours</p>
+                    <p className="text-xl font-bold text-slate-700">{Math.round(stats.totalOvertime).toLocaleString()} <span className="text-xs font-normal text-slate-400">hrs</span></p>
+                </div>
+                <div className="p-2 bg-amber-50 rounded-full">
+                    <Clock className="w-4 h-4 text-amber-600" />
+                </div>
             </div>
-         </div>
 
-         <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex items-center justify-between">
-            <div>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Skills Score</p>
-                <p className="text-xl font-bold text-slate-700">{stats.totalSkillScore.toFixed(1)}</p>
+            <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex items-center justify-between">
+                <div>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Utilization</p>
+                    <p className="text-xl font-bold text-slate-700">{Math.round(stats.utilization)}%</p>
+                </div>
+                <div className="p-2 bg-emerald-50 rounded-full">
+                    <Activity className="w-4 h-4 text-emerald-600" />
+                </div>
             </div>
-            <div className="p-2 bg-blue-50 rounded-full">
-                <Target className="w-4 h-4 text-blue-600" />
+
+            <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex items-center justify-between">
+                <div>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Skills Score</p>
+                    <p className="text-xl font-bold text-slate-700">{stats.totalSkillScore.toFixed(1)}</p>
+                </div>
+                <div className="p-2 bg-blue-50 rounded-full">
+                    <Target className="w-4 h-4 text-blue-600" />
+                </div>
             </div>
          </div>
       </div>
