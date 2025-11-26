@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
-import { GlobalConfig, ProjectInput, PhaseName } from './types';
+import { GlobalConfig, ProjectInput, PhaseName, PhaseConfig } from './types';
 import { DEFAULT_CONFIG, INITIAL_PROJECTS, TEAMS } from './constants';
 import { generateSchedule, optimizeSchedule } from './services/scheduleEngine';
 import { ProjectList } from './components/ProjectList';
@@ -8,7 +7,7 @@ import { TeamMemberList } from './components/TeamMemberList';
 import { SkillList } from './components/SkillList';
 import { ScheduleTable, ViewMode } from './components/ScheduleTable';
 import { ConfigurationPanel } from './components/ConfigurationPanel';
-import { Calendar, Filter } from 'lucide-react';
+import { Calendar, Filter, LayoutGrid, Users, Award } from 'lucide-react';
 
 const App: React.FC = () => {
   const [config, setConfig] = useState<GlobalConfig>(DEFAULT_CONFIG);
@@ -60,6 +59,65 @@ const App: React.FC = () => {
     }));
   };
 
+  const handleAssignmentChange = (projectId: string, oldStaffTypeId: string, newStaffTypeId: string) => {
+    setProjects(prev => prev.map(p => {
+      if (p.id !== projectId) return p;
+
+      // Ensure we have a config to edit (fallback to default phases if project's are missing)
+      const currentPhases = p.phasesConfig && p.phasesConfig.length > 0 
+          ? p.phasesConfig 
+          : JSON.parse(JSON.stringify(config.phases));
+
+      const newPhases = currentPhases.map((phase: PhaseConfig) => {
+        const allocations = [...phase.staffAllocation];
+        const oldAllocIndex = allocations.findIndex(a => a.staffTypeId === oldStaffTypeId);
+        
+        if (oldAllocIndex === -1) return phase;
+
+        const oldAlloc = allocations[oldAllocIndex];
+        const newAllocIndex = allocations.findIndex(a => a.staffTypeId === newStaffTypeId);
+
+        if (newAllocIndex !== -1) {
+            // Merge percentages if target already exists in this phase
+            allocations[newAllocIndex] = {
+                ...allocations[newAllocIndex],
+                percentage: allocations[newAllocIndex].percentage + oldAlloc.percentage
+            };
+            // Remove the old allocation entry
+            allocations.splice(oldAllocIndex, 1);
+        } else {
+            // Simply swap the Staff Type ID
+            allocations[oldAllocIndex] = {
+                ...oldAlloc,
+                staffTypeId: newStaffTypeId
+            };
+        }
+        
+        return { ...phase, staffAllocation: allocations };
+      });
+
+      // Cleanup overrides for the old staff type to prevent ghost data
+      let newOverrides = p.overrides;
+      if (p.overrides?.staff) {
+          const staffOverrides = { ...p.overrides.staff };
+          let hasChanges = false;
+          
+          Object.keys(staffOverrides).forEach(key => {
+              if (key.startsWith(oldStaffTypeId + '-')) {
+                  delete staffOverrides[key];
+                  hasChanges = true;
+              }
+          });
+          
+          if (hasChanges) {
+            newOverrides = { ...p.overrides, staff: staffOverrides };
+          }
+      }
+
+      return { ...p, phasesConfig: newPhases, overrides: newOverrides };
+    }));
+  };
+
   const renderSidebar = () => {
       switch(viewMode) {
           case 'skill':
@@ -90,6 +148,31 @@ const App: React.FC = () => {
             AS
           </div>
           <h1 className="text-xl font-bold tracking-tight">AuditScheduler <span className="font-light text-indigo-300">Pro</span></h1>
+        </div>
+
+        {/* View Mode Tabs */}
+        <div className="flex bg-slate-800 p-1 rounded-lg border border-slate-700">
+            <button 
+                onClick={() => setViewMode('project')}
+                className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${viewMode === 'project' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'}`}
+            >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                By Project
+            </button>
+            <button 
+                onClick={() => setViewMode('member')}
+                className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${viewMode === 'member' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'}`}
+            >
+                <Users className="w-3.5 h-3.5" />
+                By Member
+            </button>
+            <button 
+                onClick={() => setViewMode('skill')}
+                className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${viewMode === 'skill' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'}`}
+            >
+                <Award className="w-3.5 h-3.5" />
+                By Skill
+            </button>
         </div>
         
         {/* Right Side Actions / Filters */}
@@ -150,6 +233,7 @@ const App: React.FC = () => {
             projects={projects}
             config={config}
             onCellUpdate={handleCellUpdate} 
+            onAssignmentChange={handleAssignmentChange}
             viewMode={viewMode}
             onViewModeChange={setViewMode}
           />

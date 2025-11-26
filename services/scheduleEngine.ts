@@ -1,3 +1,4 @@
+
 import { 
   GlobalConfig, 
   ProjectInput, 
@@ -272,9 +273,6 @@ export const generateSchedule = (
             });
 
             // Only add the row if it has content (or if it was forced by override index logic effectively)
-            // But we already set numSplits based on need. 
-            // However, if calculatedSplits is 0 but maxOverrideIndex is 2, row 1 might be empty if overrides are only on row 2.
-            // Let's just output it if it's within numSplits to be consistent.
             if (numSplits > 0 && (hasAnyHours || staffIndex <= maxOverrideIndex)) {
                 rows.push({
                     rowId: `${project.id}-${staff.id}-${i}`,
@@ -282,6 +280,7 @@ export const generateSchedule = (
                     staffTypeId: staff.id,
                     projectName: project.name,
                     staffTypeName: staff.name,
+                    staffRole: staff.role || 'Auditor',
                     staffIndex: staffIndex,
                     cells: rowCells,
                     totalHours: rowTotalHours

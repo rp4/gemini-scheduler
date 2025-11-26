@@ -1,4 +1,8 @@
 
+
+
+
+
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { ScheduleData, PhaseName, ScheduleRow, ScheduleCell, ProjectInput, GlobalConfig } from '../types';
 import { format, parseISO } from 'date-fns';
@@ -12,6 +16,7 @@ interface ScheduleTableProps {
   projects: ProjectInput[];
   config: GlobalConfig;
   onCellUpdate: (projectId: string, staffTypeId: string, staffIndex: number, date: string, value: any, type: 'hours' | 'phase') => void;
+  onAssignmentChange: (projectId: string, oldStaffTypeId: string, newStaffTypeId: string) => void;
   viewMode: ViewMode;
   onViewModeChange: (mode: ViewMode) => void;
 }
@@ -37,7 +42,7 @@ interface GroupedRow {
   children: ScheduleRow[];
 }
 
-export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, projects, config, onCellUpdate, viewMode, onViewModeChange }) => {
+export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, projects, config, onCellUpdate, onAssignmentChange, viewMode, onViewModeChange }) => {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   
   // Editing State
@@ -75,13 +80,13 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, projects, co
         XLSX.utils.book_append_sheet(wb, ws, "Skills Matrix");
     } else {
         const wsData = [];
-        const headerRow = ['Audit Name', 'Staff Type', 'Team Member', 'Split #', 'Total Hrs', ...data.headers.map(d => format(parseISO(d), 'M/d/yy'))];
+        const headerRow = ['Audit Name', 'Staff Role', 'Team Member', 'Split #', 'Total Hrs', ...data.headers.map(d => format(parseISO(d), 'M/d/yy'))];
         wsData.push(headerRow);
         data.rows.forEach(row => {
             const rowData = [
                 row.projectName,
+                row.staffRole,
                 row.staffTypeName,
-                'Placeholder',
                 row.staffIndex > 1 ? row.staffIndex : '',
                 row.totalHours,
                 ...row.cells.map(c => c.hours || '')
@@ -123,9 +128,12 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, projects, co
         label = row.projectName;
         projectId = row.projectId;
       } else {
+        // Group by Member (and split index)
         groupId = `${row.staffTypeName}-${row.staffIndex}`;
-        label = `Placeholder`;
-        subLabel = `${row.staffTypeName} ${row.staffIndex > 1 ? '#' + row.staffIndex : ''}`;
+        // Label is the Member Name
+        label = row.staffIndex > 1 ? `${row.staffTypeName} #${row.staffIndex}` : row.staffTypeName;
+        // Sublabel is the Role - CLEARED as per user request
+        subLabel = '';
       }
 
       if (!groups[groupId]) {
@@ -184,8 +192,6 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, projects, co
       }, [type]);
 
       const handleBlur = () => {
-          // If type is phase, we handle save in onChange to avoid closure staleness issues
-          // and we use onBlur to just cancel if they click away without selecting.
           if (type !== 'phase') {
               onSave(val);
           } else {
@@ -196,7 +202,6 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, projects, co
       const handleKeyDown = (e: React.KeyboardEvent) => {
           if (e.key === 'Enter') {
               if (type === 'phase') {
-                  // For phase, explicit enter saves current val
                   onSave(val);
               } else {
                   inputRef.current?.blur();
@@ -215,13 +220,10 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, projects, co
                   onChange={(e) => {
                     const newVal = e.target.value;
                     setVal(newVal);
-                    // Save immediately on change. 
                     onSave(newVal); 
                   }}
                   onBlur={handleBlur}
                   onKeyDown={handleKeyDown}
-                  // Important: Stop propagation so interacting with the select doesn't bubble to the TD 
-                  // which could cause re-renders/closing of the menu.
                   onClick={(e) => e.stopPropagation()} 
               >
                   <option value="" disabled>Select Phase...</option>
@@ -268,7 +270,6 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, projects, co
                             </td>
                             {config.skills.map(skill => {
                                 const required = project.requiredSkills?.includes(skill);
-                                // Mock score: if required, random score between 10-60, else 0
                                 const mockScore = required ? Math.floor(Math.random() * 50) + 10 : 0;
                                 
                                 return (
@@ -333,7 +334,6 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, projects, co
             ) : (
                 groupedData.map((group) => {
                   const isExpanded = expandedGroups.has(group.id);
-                  const isMixedPhase = (p: string | null) => p === 'Mixed';
 
                   return (
                     <React.Fragment key={group.id}>
@@ -346,7 +346,7 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, projects, co
                           >
                             {isExpanded ? <ChevronDown className="w-4 h-4 text-indigo-600" /> : <ChevronRight className="w-4 h-4 text-slate-400" />}
                             <span className="truncate" title={group.label}>
-                                {viewMode === 'project' ? group.label : `${group.label} (${group.subLabel})`}
+                                {group.label}
                             </span>
                           </button>
                         </td>
@@ -354,7 +354,7 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, projects, co
                            {viewMode === 'project' ? `${group.children.length} Assignments` : group.subLabel}
                         </td>
                         <td className="sticky left-[350px] z-10 bg-slate-50/80 p-2 border-r border-slate-200 text-slate-500 italic text-xs">
-                           {viewMode === 'project' ? '-' : 'Placeholder'}
+                           -
                         </td>
                         <td className="p-2 text-center font-bold font-mono text-slate-800 border-r border-slate-200 text-xs">
                           {Math.round(group.totalHours)}
@@ -410,10 +410,28 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, projects, co
                                 {viewMode === 'project' ? '↳ Assignment' : row.projectName}
                             </td>
                             <td className="sticky left-[200px] z-10 bg-white p-2 border-r border-slate-200 text-slate-600 truncate text-xs">
-                                {viewMode === 'project' ? `${row.staffTypeName} ${row.staffIndex > 1 ? '#' + row.staffIndex : ''}` : row.staffTypeName}
+                                {viewMode === 'project' ? 
+                                    `${row.staffRole} ${row.staffIndex > 1 ? '#' + row.staffIndex : ''}` : 
+                                    row.staffRole
+                                }
                             </td>
                             <td className="sticky left-[350px] z-10 bg-white p-2 border-r border-slate-200 text-slate-400 truncate text-xs">
-                                Placeholder
+                                {viewMode === 'project' ? (
+                                    <select
+                                        className="w-full bg-transparent border border-transparent hover:border-slate-300 rounded px-1 py-0.5 text-xs text-slate-600 focus:ring-1 focus:ring-indigo-500 outline-none cursor-pointer transition-all -ml-1"
+                                        value={row.staffTypeId}
+                                        onChange={(e) => onAssignmentChange(row.projectId, row.staffTypeId, e.target.value)}
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        {config.staffTypes.map(st => (
+                                            <option key={st.id} value={st.id}>
+                                                {st.name} {st.id === 'placeholder' ? '' : `(${st.role})`}
+                                            </option>
+                                        ))}
+                                    </select>
+                                ) : (
+                                    row.staffTypeName
+                                )}
                             </td>
                             <td className="p-2 text-center font-mono text-slate-500 border-r border-slate-200 text-xs">
                                 {Math.round(row.totalHours)}
@@ -437,7 +455,6 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, projects, co
                                             type="hours"
                                             onSave={(val) => {
                                                 const num = parseFloat(val);
-                                                // Allow 0, allow 0.0. Treat NaN as 0 (clearing the field)
                                                 const finalVal = isNaN(num) ? 0 : num;
                                                 onCellUpdate(row.projectId, row.staffTypeId, row.staffIndex, cell.date, finalVal, 'hours');
                                                 setEditingCell(null);
@@ -516,59 +533,7 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, projects, co
          </div>
       </div>
 
-      <div className="p-3 border-b border-slate-200 flex justify-between items-center bg-white">
-        <div className="flex items-center gap-4">
-          <h2 className="text-md font-bold text-slate-800">Schedule Details</h2>
-          <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
-            <button
-              onClick={() => handleViewModeChange('project')}
-              className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                viewMode === 'project' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              <Layers className="w-3.5 h-3.5" />
-              by Project
-            </button>
-            <button
-              onClick={() => handleViewModeChange('member')}
-              className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                viewMode === 'member' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              <User className="w-3.5 h-3.5" />
-              by Member
-            </button>
-            <button
-              onClick={() => handleViewModeChange('skill')}
-              className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                viewMode === 'skill' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              <Award className="w-3.5 h-3.5" />
-              by Skill
-            </button>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4">
-           <div className="flex gap-2 text-xs">
-              {viewMode !== 'skill' && Object.entries(PHASE_COLORS).map(([phase, color]) => (
-                  <div key={phase} className="flex items-center gap-1">
-                      <div className={`w-3 h-3 rounded-sm ${color.split(' ')[0]}`}></div>
-                      <span>{phase}</span>
-                  </div>
-              ))}
-           </div>
-           <button 
-            onClick={exportToExcel}
-            className="flex items-center gap-2 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-sm transition-colors shadow-sm"
-           >
-            <Download className="w-4 h-4" />
-            Export
-          </button>
-        </div>
-      </div>
-
+      {/* Main Table Content */}
       <div className="flex-1 overflow-auto custom-scrollbar relative">
         {renderContent()}
       </div>

@@ -11,6 +11,7 @@ export type SkillLevel = 'None' | 'Beginner' | 'Intermediate' | 'Advanced';
 export interface StaffType {
   id: string;
   name: string;
+  role: string; // Job Title / Role
   maxHoursPerWeek: number;
   color: string;
   team?: string;
@@ -70,6 +71,7 @@ export interface ScheduleRow {
   staffTypeId: string; // Link back to staff type
   projectName: string;
   staffTypeName: string;
+  staffRole: string; // The role/title of the staff member
   staffIndex: number; // If split into multiple employees (1, 2, 3...)
   cells: ScheduleCell[];
   totalHours: number;

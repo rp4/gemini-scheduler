@@ -24,9 +24,10 @@ export const SKILLS_LIST = [
 ];
 
 export const DEFAULT_STAFF_TYPES: StaffType[] = [
-  { id: 'pm', name: 'Alex Johnson', maxHoursPerWeek: 10, color: 'bg-purple-100 text-purple-800', team: 'Finance' },
-  { id: 'lead', name: 'Sarah Miller', maxHoursPerWeek: 40, color: 'bg-blue-100 text-blue-800', team: 'IT' },
-  { id: 'staff', name: 'Mike Davis', maxHoursPerWeek: 40, color: 'bg-green-100 text-green-800', team: 'Operations' },
+  { id: 'pm', name: 'Alex Johnson', role: 'Portfolio Manager', maxHoursPerWeek: 10, color: 'bg-purple-100 text-purple-800', team: 'Finance' },
+  { id: 'lead', name: 'Sarah Miller', role: 'Audit Lead', maxHoursPerWeek: 40, color: 'bg-blue-100 text-blue-800', team: 'IT' },
+  { id: 'staff', name: 'Mike Davis', role: 'Senior Auditor', maxHoursPerWeek: 40, color: 'bg-green-100 text-green-800', team: 'Operations' },
+  { id: 'placeholder', name: 'Placeholder', role: 'Unassigned', maxHoursPerWeek: 40, color: 'bg-slate-200 text-slate-500', team: 'General' },
 ];
 
 export const DEFAULT_CONFIG: GlobalConfig = {
@@ -43,6 +44,7 @@ export const DEFAULT_CONFIG: GlobalConfig = {
         { staffTypeId: 'pm', percentage: 40 },
         { staffTypeId: 'lead', percentage: 60 },
         { staffTypeId: 'staff', percentage: 0 },
+        { staffTypeId: 'placeholder', percentage: 0 },
       ],
     },
     {
@@ -54,6 +56,7 @@ export const DEFAULT_CONFIG: GlobalConfig = {
         { staffTypeId: 'pm', percentage: 10 },
         { staffTypeId: 'lead', percentage: 40 },
         { staffTypeId: 'staff', percentage: 50 },
+        { staffTypeId: 'placeholder', percentage: 0 },
       ],
     },
     {
@@ -65,6 +68,7 @@ export const DEFAULT_CONFIG: GlobalConfig = {
         { staffTypeId: 'pm', percentage: 5 },
         { staffTypeId: 'lead', percentage: 25 },
         { staffTypeId: 'staff', percentage: 70 },
+        { staffTypeId: 'placeholder', percentage: 0 },
       ],
     },
     {
@@ -76,6 +80,7 @@ export const DEFAULT_CONFIG: GlobalConfig = {
         { staffTypeId: 'pm', percentage: 20 },
         { staffTypeId: 'lead', percentage: 50 },
         { staffTypeId: 'staff', percentage: 30 },
+        { staffTypeId: 'placeholder', percentage: 0 },
       ],
     },
   ],

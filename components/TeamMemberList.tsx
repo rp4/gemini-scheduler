@@ -1,8 +1,9 @@
 
+
 import React, { useState } from 'react';
 import { GlobalConfig, StaffType, SkillLevel } from '../types';
 import { TEAMS } from '../constants';
-import { Plus, Trash2, Users, X } from 'lucide-react';
+import { Plus, Trash2, Users, X, Sparkles } from 'lucide-react';
 
 interface TeamMemberListProps {
   config: GlobalConfig;
@@ -14,6 +15,7 @@ export const TeamMemberList: React.FC<TeamMemberListProps> = ({ config, setConfi
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
   
   const [newName, setNewName] = useState('');
+  const [newRole, setNewRole] = useState('');
   const [newHours, setNewHours] = useState<number>(40);
   const [newTeam, setNewTeam] = useState<string>(TEAMS[0]);
   const [newSkills, setNewSkills] = useState<Record<string, SkillLevel>>({});
@@ -21,6 +23,7 @@ export const TeamMemberList: React.FC<TeamMemberListProps> = ({ config, setConfi
   const openAddModal = () => {
     setEditingMemberId(null);
     setNewName('');
+    setNewRole('Staff Auditor');
     setNewHours(40);
     setNewTeam(TEAMS[0]);
     setNewSkills({});
@@ -30,6 +33,7 @@ export const TeamMemberList: React.FC<TeamMemberListProps> = ({ config, setConfi
   const openEditModal = (staff: StaffType) => {
     setEditingMemberId(staff.id);
     setNewName(staff.name);
+    setNewRole(staff.role || 'Staff Auditor');
     setNewHours(staff.maxHoursPerWeek);
     setNewTeam(staff.team || TEAMS[0]);
     setNewSkills(staff.skills || {});
@@ -46,6 +50,7 @@ export const TeamMemberList: React.FC<TeamMemberListProps> = ({ config, setConfi
             staffTypes: config.staffTypes.map(s => s.id === editingMemberId ? {
                 ...s,
                 name: newName,
+                role: newRole,
                 maxHoursPerWeek: newHours,
                 team: newTeam,
                 skills: newSkills
@@ -69,6 +74,7 @@ export const TeamMemberList: React.FC<TeamMemberListProps> = ({ config, setConfi
         const newStaff: StaffType = {
           id,
           name: newName,
+          role: newRole,
           maxHoursPerWeek: newHours,
           color,
           team: newTeam,
@@ -89,6 +95,7 @@ export const TeamMemberList: React.FC<TeamMemberListProps> = ({ config, setConfi
     }
 
     setNewName('');
+    setNewRole('');
     setNewHours(40);
     setNewTeam(TEAMS[0]);
     setNewSkills({});
@@ -155,9 +162,11 @@ export const TeamMemberList: React.FC<TeamMemberListProps> = ({ config, setConfi
                               onClick={(e) => e.stopPropagation()}
                               onChange={(e) => updateMember(staff.id, 'name', e.target.value)}
                            />
-                           {staff.team && (
-                               <span className="text-[10px] text-slate-400 mt-0.5">{staff.team}</span>
-                           )}
+                           <div className="flex gap-1 mt-0.5">
+                               {staff.team && (
+                                   <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">{staff.team}</span>
+                               )}
+                           </div>
                       </div>
                       <div className="col-span-5">
                           <label className="text-[10px] text-slate-400 block">Hrs/Wk</label>
@@ -187,6 +196,17 @@ export const TeamMemberList: React.FC<TeamMemberListProps> = ({ config, setConfi
               <span className="text-sm italic">No team members defined.</span>
             </div>
           )}
+        </div>
+
+        {/* Footer Actions */}
+        <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col gap-3 shrink-0">
+          <button 
+            onClick={() => {}}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-lg text-sm font-medium transition-all shadow-sm group"
+          >
+            <Sparkles className="w-4 h-4 group-hover:scale-110 transition-transform" />
+            Auto Assign
+          </button>
         </div>
       </div>
 
@@ -221,6 +241,17 @@ export const TeamMemberList: React.FC<TeamMemberListProps> = ({ config, setConfi
                             value={newName}
                             onChange={(e) => setNewName(e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && handleSave()}
+                        />
+                    </div>
+
+                     <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1.5">Default Role / Title</label>
+                        <input
+                            type="text"
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all placeholder:text-slate-400"
+                            placeholder="e.g., Portfolio Manager"
+                            value={newRole}
+                            onChange={(e) => setNewRole(e.target.value)}
                         />
                     </div>
                     
