@@ -1,3 +1,4 @@
+
 import { GlobalConfig, PhaseName, StaffType, ProjectInput } from './types';
 
 export const TEAMS = ['Finance', 'IT', 'Operations', 'Compliance', 'General'];
@@ -30,6 +31,7 @@ export const DEFAULT_STAFF_TYPES: StaffType[] = [
 export const DEFAULT_CONFIG: GlobalConfig = {
   year: 2026,
   staffTypes: DEFAULT_STAFF_TYPES,
+  skills: SKILLS_LIST,
   phases: [
     {
       name: PhaseName.PRE_PLANNING,

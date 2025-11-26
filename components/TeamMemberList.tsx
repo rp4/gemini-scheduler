@@ -1,6 +1,7 @@
+
 import React, { useState } from 'react';
 import { GlobalConfig, StaffType, SkillLevel } from '../types';
-import { TEAMS, SKILLS_LIST } from '../constants';
+import { TEAMS } from '../constants';
 import { Plus, Trash2, Users, X } from 'lucide-react';
 
 interface TeamMemberListProps {
@@ -252,7 +253,7 @@ export const TeamMemberList: React.FC<TeamMemberListProps> = ({ config, setConfi
                     <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1.5">Skills & Proficiency</label>
                         <div className="w-full border border-slate-300 rounded-lg h-60 overflow-y-auto bg-slate-50/50 custom-scrollbar divide-y divide-slate-100">
-                            {SKILLS_LIST.map(skill => {
+                            {config.skills.map(skill => {
                                 const level = newSkills[skill] || 'None';
                                 const getLevelColor = (l: SkillLevel) => {
                                     switch(l) {

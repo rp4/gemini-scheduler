@@ -1,13 +1,16 @@
+
 import React, { useMemo, useState, useRef, useEffect } from 'react';
-import { ScheduleData, PhaseName, ScheduleRow, ScheduleCell } from '../types';
+import { ScheduleData, PhaseName, ScheduleRow, ScheduleCell, ProjectInput, GlobalConfig } from '../types';
 import { format, parseISO } from 'date-fns';
-import { Download, TrendingUp, Users, Layers, User, ChevronRight, ChevronDown, Clock, Activity, Target } from 'lucide-react';
+import { Download, TrendingUp, Users, Layers, User, ChevronRight, ChevronDown, Clock, Activity, Target, Award } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
-export type ViewMode = 'project' | 'member';
+export type ViewMode = 'project' | 'member' | 'skill';
 
 interface ScheduleTableProps {
   data: ScheduleData;
+  projects: ProjectInput[];
+  config: GlobalConfig;
   onCellUpdate: (projectId: string, staffTypeId: string, staffIndex: number, date: string, value: any, type: 'hours' | 'phase') => void;
   viewMode: ViewMode;
   onViewModeChange: (mode: ViewMode) => void;
@@ -34,7 +37,7 @@ interface GroupedRow {
   children: ScheduleRow[];
 }
 
-export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, onCellUpdate, viewMode, onViewModeChange }) => {
+export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, projects, config, onCellUpdate, viewMode, onViewModeChange }) => {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   
   // Editing State
@@ -56,23 +59,39 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, onCellUpdate
   };
 
   const exportToExcel = () => {
-    const wsData = [];
-    const headerRow = ['Audit Name', 'Staff Type', 'Team Member', 'Split #', 'Total Hrs', ...data.headers.map(d => format(parseISO(d), 'M/d/yy'))];
-    wsData.push(headerRow);
-    data.rows.forEach(row => {
-        const rowData = [
-            row.projectName,
-            row.staffTypeName,
-            'Placeholder',
-            row.staffIndex > 1 ? row.staffIndex : '',
-            row.totalHours,
-            ...row.cells.map(c => c.hours || '')
-        ];
-        wsData.push(rowData);
-    });
     const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet(wsData);
-    XLSX.utils.book_append_sheet(wb, ws, "Schedule");
+
+    if (viewMode === 'skill') {
+        const headerRow = ['Audit Name', ...config.skills];
+        const wsData = [headerRow];
+        projects.forEach(p => {
+            const row = [p.name, ...config.skills.map(s => {
+                const required = p.requiredSkills?.includes(s);
+                return required ? Math.floor(Math.random() * 50) + 10 : 0;
+            })];
+            wsData.push(row as any);
+        });
+        const ws = XLSX.utils.aoa_to_sheet(wsData);
+        XLSX.utils.book_append_sheet(wb, ws, "Skills Matrix");
+    } else {
+        const wsData = [];
+        const headerRow = ['Audit Name', 'Staff Type', 'Team Member', 'Split #', 'Total Hrs', ...data.headers.map(d => format(parseISO(d), 'M/d/yy'))];
+        wsData.push(headerRow);
+        data.rows.forEach(row => {
+            const rowData = [
+                row.projectName,
+                row.staffTypeName,
+                'Placeholder',
+                row.staffIndex > 1 ? row.staffIndex : '',
+                row.totalHours,
+                ...row.cells.map(c => c.hours || '')
+            ];
+            wsData.push(rowData);
+        });
+        const ws = XLSX.utils.aoa_to_sheet(wsData);
+        XLSX.utils.book_append_sheet(wb, ws, "Schedule");
+    }
+    
     XLSX.writeFile(wb, "Audit_Schedule_2026.xlsx");
   };
 
@@ -225,100 +244,60 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, onCellUpdate
       );
   };
 
-  return (
-    <div className="flex flex-col h-full bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-      
-      {/* Stats Dashboard */}
-      <div className="p-4 bg-slate-50 border-b border-slate-200 grid grid-cols-1 md:grid-cols-4 gap-4">
-         <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex items-center justify-between">
-            <div>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Avg Hrs/Wk</p>
-                <p className="text-2xl font-bold text-slate-800">{stats.totalAvgWeekly.toFixed(1)}</p>
-            </div>
-            <div className="p-2 bg-indigo-50 rounded-full">
-                <TrendingUp className="w-5 h-5 text-indigo-600" />
-            </div>
-         </div>
-         
-         {/* Mock Metric 1: Overtime */}
-         <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex items-center justify-between">
-            <div>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Overtime Hours</p>
-                <p className="text-xl font-bold text-slate-700">42 <span className="text-xs font-normal text-slate-400">hrs</span></p>
-            </div>
-            <div className="p-2 bg-amber-50 rounded-full">
-                <Clock className="w-4 h-4 text-amber-600" />
-            </div>
-         </div>
+  const renderContent = () => {
+    if (viewMode === 'skill') {
+        return (
+            <table className="border-collapse min-w-max w-full text-sm">
+                <thead className="bg-slate-100 sticky top-0 z-20 shadow-sm">
+                    <tr>
+                        <th className="sticky left-0 z-30 bg-slate-100 p-3 text-left font-semibold text-slate-600 border-r border-b border-slate-300 min-w-[200px] w-[200px]">
+                            Audit Name
+                        </th>
+                        {config.skills.map(skill => (
+                            <th key={skill} className="p-3 text-center font-semibold text-slate-600 border-r border-b border-slate-300 min-w-[100px]">
+                                <span className="text-xs">{skill}</span>
+                            </th>
+                        ))}
+                    </tr>
+                </thead>
+                <tbody>
+                    {projects.map(project => (
+                        <tr key={project.id} className="hover:bg-slate-50 border-b border-slate-100 bg-white">
+                            <td className="sticky left-0 z-10 bg-white p-3 border-r border-slate-200 font-medium text-slate-700">
+                                {project.name}
+                            </td>
+                            {config.skills.map(skill => {
+                                const required = project.requiredSkills?.includes(skill);
+                                // Mock score: if required, random score between 10-60, else 0
+                                const mockScore = required ? Math.floor(Math.random() * 50) + 10 : 0;
+                                
+                                return (
+                                    <td key={skill} className="p-2 text-center border-r border-slate-100">
+                                        {mockScore > 0 ? (
+                                            <div className="inline-block px-2 py-1 rounded bg-indigo-50 text-indigo-700 font-bold text-xs border border-indigo-100">
+                                                {mockScore} pts
+                                            </div>
+                                        ) : (
+                                            <span className="text-slate-200">-</span>
+                                        )}
+                                    </td>
+                                );
+                            })}
+                        </tr>
+                    ))}
+                    {projects.length === 0 && (
+                        <tr>
+                            <td colSpan={config.skills.length + 1} className="p-10 text-center text-slate-400">
+                                Add projects to view skill requirements.
+                            </td>
+                        </tr>
+                    )}
+                </tbody>
+            </table>
+        );
+    }
 
-         {/* Mock Metric 2: Utilization */}
-         <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex items-center justify-between">
-            <div>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Utilization</p>
-                <p className="text-xl font-bold text-slate-700">87%</p>
-            </div>
-            <div className="p-2 bg-emerald-50 rounded-full">
-                <Activity className="w-4 h-4 text-emerald-600" />
-            </div>
-         </div>
-
-         {/* Mock Metric 3: Skills Matching */}
-         <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex items-center justify-between">
-            <div>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Skills Matching</p>
-                <p className="text-xl font-bold text-slate-700">94%</p>
-            </div>
-            <div className="p-2 bg-blue-50 rounded-full">
-                <Target className="w-4 h-4 text-blue-600" />
-            </div>
-         </div>
-      </div>
-
-      <div className="p-3 border-b border-slate-200 flex justify-between items-center bg-white">
-        <div className="flex items-center gap-4">
-          <h2 className="text-md font-bold text-slate-800">Schedule Details</h2>
-          <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
-            <button
-              onClick={() => handleViewModeChange('project')}
-              className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                viewMode === 'project' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              <Layers className="w-3.5 h-3.5" />
-              by Project
-            </button>
-            <button
-              onClick={() => handleViewModeChange('member')}
-              className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                viewMode === 'member' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              <User className="w-3.5 h-3.5" />
-              by Member
-            </button>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4">
-           <div className="flex gap-2 text-xs">
-              {Object.entries(PHASE_COLORS).map(([phase, color]) => (
-                  <div key={phase} className="flex items-center gap-1">
-                      <div className={`w-3 h-3 rounded-sm ${color.split(' ')[0]}`}></div>
-                      <span>{phase}</span>
-                  </div>
-              ))}
-           </div>
-           <button 
-            onClick={exportToExcel}
-            className="flex items-center gap-2 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-sm transition-colors shadow-sm"
-           >
-            <Download className="w-4 h-4" />
-            Export
-          </button>
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-auto custom-scrollbar relative">
+    return (
         <table className="border-collapse min-w-max w-full text-sm">
           <thead className="bg-slate-100 sticky top-0 z-20 shadow-sm">
             <tr>
@@ -488,6 +467,110 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, onCellUpdate
             )}
           </tbody>
         </table>
+    );
+  };
+
+  return (
+    <div className="flex flex-col h-full bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      
+      {/* Stats Dashboard */}
+      <div className="p-4 bg-slate-50 border-b border-slate-200 grid grid-cols-1 md:grid-cols-4 gap-4">
+         <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Avg Hrs/Wk</p>
+                <p className="text-2xl font-bold text-slate-800">{stats.totalAvgWeekly.toFixed(1)}</p>
+            </div>
+            <div className="p-2 bg-indigo-50 rounded-full">
+                <TrendingUp className="w-5 h-5 text-indigo-600" />
+            </div>
+         </div>
+         
+         <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Overtime Hours</p>
+                <p className="text-xl font-bold text-slate-700">42 <span className="text-xs font-normal text-slate-400">hrs</span></p>
+            </div>
+            <div className="p-2 bg-amber-50 rounded-full">
+                <Clock className="w-4 h-4 text-amber-600" />
+            </div>
+         </div>
+
+         <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Utilization</p>
+                <p className="text-xl font-bold text-slate-700">87%</p>
+            </div>
+            <div className="p-2 bg-emerald-50 rounded-full">
+                <Activity className="w-4 h-4 text-emerald-600" />
+            </div>
+         </div>
+
+         <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Skills Matching</p>
+                <p className="text-xl font-bold text-slate-700">94%</p>
+            </div>
+            <div className="p-2 bg-blue-50 rounded-full">
+                <Target className="w-4 h-4 text-blue-600" />
+            </div>
+         </div>
+      </div>
+
+      <div className="p-3 border-b border-slate-200 flex justify-between items-center bg-white">
+        <div className="flex items-center gap-4">
+          <h2 className="text-md font-bold text-slate-800">Schedule Details</h2>
+          <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
+            <button
+              onClick={() => handleViewModeChange('project')}
+              className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                viewMode === 'project' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              by Project
+            </button>
+            <button
+              onClick={() => handleViewModeChange('member')}
+              className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                viewMode === 'member' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <User className="w-3.5 h-3.5" />
+              by Member
+            </button>
+            <button
+              onClick={() => handleViewModeChange('skill')}
+              className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                viewMode === 'skill' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <Award className="w-3.5 h-3.5" />
+              by Skill
+            </button>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4">
+           <div className="flex gap-2 text-xs">
+              {viewMode !== 'skill' && Object.entries(PHASE_COLORS).map(([phase, color]) => (
+                  <div key={phase} className="flex items-center gap-1">
+                      <div className={`w-3 h-3 rounded-sm ${color.split(' ')[0]}`}></div>
+                      <span>{phase}</span>
+                  </div>
+              ))}
+           </div>
+           <button 
+            onClick={exportToExcel}
+            className="flex items-center gap-2 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-sm transition-colors shadow-sm"
+           >
+            <Download className="w-4 h-4" />
+            Export
+          </button>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-auto custom-scrollbar relative">
+        {renderContent()}
       </div>
     </div>
   );

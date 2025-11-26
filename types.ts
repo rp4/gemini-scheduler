@@ -1,3 +1,4 @@
+
 export enum PhaseName {
   PRE_PLANNING = 'Pre-Planning',
   PLANNING = 'Planning',
@@ -33,6 +34,7 @@ export interface GlobalConfig {
   year: number;
   phases: PhaseConfig[];
   staffTypes: StaffType[];
+  skills: string[];
 }
 
 export interface ProjectOverrides {

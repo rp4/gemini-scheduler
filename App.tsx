@@ -1,9 +1,11 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { GlobalConfig, ProjectInput, PhaseName } from './types';
 import { DEFAULT_CONFIG, INITIAL_PROJECTS, TEAMS } from './constants';
 import { generateSchedule, optimizeSchedule } from './services/scheduleEngine';
 import { ProjectList } from './components/ProjectList';
 import { TeamMemberList } from './components/TeamMemberList';
+import { SkillList } from './components/SkillList';
 import { ScheduleTable, ViewMode } from './components/ScheduleTable';
 import { ConfigurationPanel } from './components/ConfigurationPanel';
 import { Calendar, Filter } from 'lucide-react';
@@ -56,6 +58,27 @@ const App: React.FC = () => {
 
       return { ...p, overrides: newOverrides };
     }));
+  };
+
+  const renderSidebar = () => {
+      switch(viewMode) {
+          case 'skill':
+              return <SkillList config={config} setConfig={setConfig} />;
+          case 'member':
+              return <TeamMemberList config={config} setConfig={setConfig} />;
+          case 'project':
+          default:
+              return (
+                <ProjectList 
+                    projects={projects} 
+                    setProjects={setProjects} 
+                    currentConfig={config} 
+                    onOptimize={handleOptimize}
+                    isOptimizing={isOptimizing}
+                    onConfigure={() => setIsConfigOpen(true)}
+                />
+              );
+      }
   };
 
   return (
@@ -117,24 +140,15 @@ const App: React.FC = () => {
       <main className="flex-1 flex overflow-hidden p-4 gap-4">
         {/* Left Sidebar */}
         <aside className="w-96 shrink-0 flex flex-col h-full">
-           {viewMode === 'project' ? (
-             <ProjectList 
-                projects={projects} 
-                setProjects={setProjects} 
-                currentConfig={config} 
-                onOptimize={handleOptimize}
-                isOptimizing={isOptimizing}
-                onConfigure={() => setIsConfigOpen(true)}
-             />
-           ) : (
-             <TeamMemberList config={config} setConfig={setConfig} />
-           )}
+           {renderSidebar()}
         </aside>
 
         {/* Main Area: Schedule Table */}
         <section className="flex-1 h-full min-w-0">
           <ScheduleTable 
             data={scheduleData} 
+            projects={projects}
+            config={config}
             onCellUpdate={handleCellUpdate} 
             viewMode={viewMode}
             onViewModeChange={setViewMode}

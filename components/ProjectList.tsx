@@ -1,6 +1,7 @@
+
 import React, { useState } from 'react';
 import { ProjectInput, GlobalConfig } from '../types';
-import { TEAMS, SKILLS_LIST } from '../constants';
+import { TEAMS } from '../constants';
 import { Plus, Trash2, Calendar, Lock, Unlock, X, Sparkles, Settings } from 'lucide-react';
 
 interface ProjectListProps {
@@ -137,7 +138,7 @@ export const ProjectList: React.FC<ProjectListProps> = ({
             >
               <div className="flex-1 grid grid-cols-12 gap-2 items-center">
                  {/* Name */}
-                 <div className="col-span-4 flex flex-col justify-center">
+                 <div className="col-span-7 flex flex-col justify-center">
                     <div className="font-medium text-slate-700 truncate text-sm" title={project.name}>
                         {project.name}
                     </div>
@@ -145,24 +146,7 @@ export const ProjectList: React.FC<ProjectListProps> = ({
                       {project.team && (
                           <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">{project.team}</span>
                       )}
-                      {project.requiredSkills && project.requiredSkills.length > 0 && (
-                        <span className="text-[10px] text-indigo-500 bg-indigo-50 px-1 rounded-sm">
-                          {project.requiredSkills.length} Skills
-                        </span>
-                      )}
                     </div>
-                 </div>
-
-                 {/* Budget */}
-                 <div className="col-span-3 text-sm text-slate-500 flex flex-col gap-0.5">
-                    <label className="text-[10px] text-slate-400">Budget</label>
-                    <input 
-                      type="number" 
-                      className="w-full p-1 text-xs border border-slate-300 rounded bg-slate-50 focus:bg-white focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
-                      value={project.budgetHours}
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={(e) => updateProject(project.id, 'budgetHours', parseInt(e.target.value) || 0)}
-                    />
                  </div>
 
                  {/* Start Week & Lock */}
@@ -305,7 +289,7 @@ export const ProjectList: React.FC<ProjectListProps> = ({
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1.5">Required Skills</label>
                       <div className="w-full border border-slate-300 rounded-lg h-32 overflow-y-auto p-2 bg-slate-50/50 custom-scrollbar">
-                        {SKILLS_LIST.map(skill => (
+                        {currentConfig.skills.map(skill => (
                           <label key={skill} className="flex items-center gap-2 p-1.5 hover:bg-white hover:shadow-sm rounded cursor-pointer transition-all">
                             <input
                               type="checkbox"
