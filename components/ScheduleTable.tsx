@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { ScheduleData, PhaseName, ScheduleRow, ScheduleCell, ProjectInput, GlobalConfig } from '../types';
 import { format, parseISO } from 'date-fns';
@@ -43,6 +44,18 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, projects, co
   // Editing State
   const [editingCell, setEditingCell] = useState<{ id: string, date: string, type: 'project' | 'staff' } | null>(null);
 
+  // Map Project IDs to Set of assigned Staff IDs
+  const projectAssignments = useMemo(() => {
+    const map: Record<string, Set<string>> = {};
+    data.rows.forEach(row => {
+        if (row.totalHours > 0) {
+            if (!map[row.projectId]) map[row.projectId] = new Set();
+            map[row.projectId].add(row.staffTypeId);
+        }
+    });
+    return map;
+  }, [data.rows]);
+
   const toggleGroup = (id: string) => {
     const newSet = new Set(expandedGroups);
     if (newSet.has(id)) {
@@ -67,7 +80,21 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, projects, co
         projects.forEach(p => {
             const row = [p.name, ...config.skills.map(s => {
                 const required = p.requiredSkills?.includes(s);
-                return required ? Math.floor(Math.random() * 50) + 10 : 0;
+                if (!required) return 0;
+
+                // Calculate real score for export
+                const assignedIds = projectAssignments[p.id];
+                if (!assignedIds) return 0;
+
+                let score = 0;
+                assignedIds.forEach(id => {
+                    const staff = config.staffTypes.find(st => st.id === id);
+                    const lvl = staff?.skills?.[s];
+                    if (lvl === 'Beginner') score += 1;
+                    if (lvl === 'Intermediate') score += 2;
+                    if (lvl === 'Advanced') score += 3;
+                });
+                return score;
             })];
             wsData.push(row as any);
         });
@@ -151,25 +178,22 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, projects, co
     // Sum of (Total Points for Project / Num Skills in Project) for all projects
     let totalSkillScore = 0;
     
-    // 1. Map Projects to assigned Staff (who have active hours in view)
-    const projectAssignments: Record<string, Set<string>> = {};
-
+    // Reuse the projectAssignments calculation logic for consistency
+    const assignmentMap: Record<string, Set<string>> = {};
     data.rows.forEach(row => {
         if (row.totalHours > 0) {
-            if (!projectAssignments[row.projectId]) {
-                projectAssignments[row.projectId] = new Set();
-            }
-            projectAssignments[row.projectId].add(row.staffTypeId);
+            if (!assignmentMap[row.projectId]) assignmentMap[row.projectId] = new Set();
+            assignmentMap[row.projectId].add(row.staffTypeId);
         }
     });
 
-    // 2. Calculate score per project
-    Object.keys(projectAssignments).forEach(projectId => {
+    // Calculate score per project
+    Object.keys(assignmentMap).forEach(projectId => {
         const project = projects.find(p => p.id === projectId);
         
         if (project && project.requiredSkills && project.requiredSkills.length > 0) {
             let projectPoints = 0;
-            const assignedStaffIds = projectAssignments[projectId];
+            const assignedStaffIds = assignmentMap[projectId];
             
             project.requiredSkills.forEach(skillName => {
                 assignedStaffIds.forEach(staffId => {
@@ -347,16 +371,56 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, projects, co
                             </td>
                             {config.skills.map(skill => {
                                 const required = project.requiredSkills?.includes(skill);
-                                const mockScore = required ? Math.floor(Math.random() * 50) + 10 : 0;
+                                
+                                if (!required) {
+                                    return (
+                                        <td key={skill} className="p-2 text-center border-r border-slate-100">
+                                            <span className="text-slate-200 text-[10px]">-</span>
+                                        </td>
+                                    );
+                                }
+
+                                // Calculate Score based on assigned staff
+                                const assignedStaffIds = projectAssignments[project.id] || new Set();
+                                let score = 0;
+                                let contributingStaff: string[] = [];
+                                
+                                assignedStaffIds.forEach(staffId => {
+                                    const staff = config.staffTypes.find(s => s.id === staffId);
+                                    const level = staff?.skills?.[skill];
+                                    if (level) {
+                                        if (level === 'Beginner') score += 1;
+                                        else if (level === 'Intermediate') score += 2;
+                                        else if (level === 'Advanced') score += 3;
+                                        
+                                        if (level !== 'None') {
+                                            contributingStaff.push(`${staff?.name} (${level})`);
+                                        }
+                                    }
+                                });
                                 
                                 return (
                                     <td key={skill} className="p-2 text-center border-r border-slate-100">
-                                        {mockScore > 0 ? (
-                                            <div className="inline-block px-2 py-1 rounded bg-indigo-50 text-indigo-700 font-bold text-xs border border-indigo-100">
-                                                {mockScore} pts
+                                        {score > 0 ? (
+                                            <div className="group relative inline-block">
+                                                <div className="inline-block px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-bold text-xs border border-indigo-100 cursor-help">
+                                                    {score} pts
+                                                </div>
+                                                {/* Tooltip */}
+                                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-50 w-max max-w-[200px]">
+                                                    <div className="bg-slate-800 text-white text-[10px] rounded py-1 px-2 shadow-xl">
+                                                        {contributingStaff.map((s, i) => (
+                                                            <div key={i}>{s}</div>
+                                                        ))}
+                                                        {contributingStaff.length === 0 && <div>No contributing staff</div>}
+                                                    </div>
+                                                    <div className="w-2 h-2 bg-slate-800 rotate-45 absolute left-1/2 -translate-x-1/2 -bottom-1"></div>
+                                                </div>
                                             </div>
                                         ) : (
-                                            <span className="text-slate-200">-</span>
+                                            <div className="inline-block px-2 py-0.5 rounded bg-red-50 text-red-600 font-bold text-xs border border-red-100" title="Required skill missing from assigned staff">
+                                                Missing
+                                            </div>
                                         )}
                                     </td>
                                 );
