@@ -90,9 +90,17 @@ const App: React.FC = () => {
   const handleOptimize = async () => {
     setIsOptimizing(true);
     setTimeout(() => {
-      const optimizedProjects = optimizeSchedule(projects, config);
+      const { optimizedProjects, warnings } = optimizeSchedule(projects, config);
       setProjects(optimizedProjects);
       setIsOptimizing(false);
+
+      if (warnings.length > 0) {
+          const uniqueWarnings = Array.from(new Set(warnings));
+          const count = uniqueWarnings.length;
+          const msg = uniqueWarnings.slice(0, 5).join('\n');
+          const remaining = count - 5;
+          alert(`Optimization Completed with Warnings:\n\n${msg}${remaining > 0 ? `\n...and ${remaining} more.` : ''}\n\nSome placeholders were not filled because all eligible team members are already assigned to these projects.`);
+      }
     }, 50);
   };
 

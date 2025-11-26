@@ -53,9 +53,163 @@ const calculateWeeklyAggregates = (projects: ProjectInput[], config: GlobalConfi
 };
 
 /**
+ * Assigns real staff to placeholder slots based on constraints and optimization goals.
+ */
+const assignStaffToPlaceholders = (projects: ProjectInput[], config: GlobalConfig) => {
+    const workingProjects = JSON.parse(JSON.stringify(projects));
+    const warnings: string[] = [];
+    
+    // 1. Calculate Initial Loads based on current assignments
+    const weeklyLoads = calculateWeeklyAggregates(workingProjects, config);
+
+    // 2. Identify Tasks (Placeholder slots)
+    interface Task {
+        projectId: string;
+        projectName: string;
+        phaseIndex: number;
+        allocIndex: number;
+        startWeek: number;
+        duration: number;
+        hoursPerWeek: number;
+        requiredSkills: string[];
+        team: string;
+    }
+
+    const tasks: Task[] = [];
+
+    workingProjects.forEach((p: ProjectInput) => {
+        const phases = p.phasesConfig || config.phases;
+        let currentWeek = p.startWeekOffset;
+        
+        phases.forEach((phase: any, pIdx: number) => {
+            const phaseTotalHours = (p.budgetHours * phase.percentBudget) / 100;
+            const duration = phase.maxWeeks;
+            
+            if (duration > 0) {
+                 phase.staffAllocation.forEach((alloc: any, aIdx: number) => {
+                     if (alloc.staffTypeId === 'placeholder' && alloc.percentage > 0) {
+                         const staffHoursTotal = (phaseTotalHours * alloc.percentage) / 100;
+                         let hoursPerWeek = staffHoursTotal / duration;
+                         // Round to nearest 4 for realistic scheduling
+                         hoursPerWeek = Math.round(hoursPerWeek / 4) * 4;
+                         if (hoursPerWeek === 0 && staffHoursTotal > 0) hoursPerWeek = 4;
+
+                         tasks.push({
+                             projectId: p.id,
+                             projectName: p.name,
+                             phaseIndex: pIdx,
+                             allocIndex: aIdx,
+                             startWeek: currentWeek,
+                             duration: duration,
+                             hoursPerWeek,
+                             requiredSkills: p.requiredSkills || [],
+                             team: p.team || 'General'
+                         });
+                     }
+                 });
+            }
+            currentWeek += duration;
+        });
+    });
+
+    // 3. Sort Tasks by Total Effort Descending (Assign big chunks first)
+    tasks.sort((a, b) => (b.hoursPerWeek * b.duration) - (a.hoursPerWeek * a.duration));
+
+    // 4. Optimization Loop
+    tasks.forEach(task => {
+        // Find assigned staff on this project to exclude (Constraint: cannot be assigned twice)
+        const project = workingProjects.find((p: ProjectInput) => p.id === task.projectId);
+        const assignedStaff = new Set<string>();
+        if (project && project.phasesConfig) {
+             project.phasesConfig.forEach((ph: any) => {
+                 ph.staffAllocation.forEach((sa: any) => {
+                     if (sa.staffTypeId !== 'placeholder') assignedStaff.add(sa.staffTypeId);
+                 });
+             });
+        }
+
+        const candidates = config.staffTypes.filter(s => 
+            s.id !== 'placeholder' && 
+            !assignedStaff.has(s.id)
+        );
+
+        let bestCandidate = null;
+        let bestScore = -Infinity;
+
+        candidates.forEach(candidate => {
+            let score = 0;
+
+            // 1. Team Match Bonus
+            if (candidate.team === task.team) score += 50;
+
+            // 2. Skill Match Bonus
+            if (task.requiredSkills.length > 0 && candidate.skills) {
+                task.requiredSkills.forEach(skill => {
+                    const level = candidate.skills?.[skill];
+                    if (level === 'Beginner') score += 10;
+                    if (level === 'Intermediate') score += 20;
+                    if (level === 'Advanced') score += 30;
+                });
+            }
+
+            // 3. Overtime Penalty & Utilization Reward
+            let overtimePenalty = 0;
+            let utilizationReward = 0;
+            
+            for (let w = 0; w < task.duration; w++) {
+                const weekIdx = task.startWeek + w;
+                if (weekIdx < 53) {
+                    const currentLoad = weeklyLoads[candidate.id]?.[weekIdx] || 0;
+                    const newLoad = currentLoad + task.hoursPerWeek;
+                    
+                    if (newLoad > candidate.maxHoursPerWeek) {
+                        // Squared penalty for overtime to strongly discourage peaks
+                        overtimePenalty += Math.pow(newLoad - candidate.maxHoursPerWeek, 2);
+                    } else {
+                        // Reward for using available capacity
+                        utilizationReward += task.hoursPerWeek;
+                    }
+                }
+            }
+
+            score -= (overtimePenalty * 10); 
+            score += (utilizationReward * 1);
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestCandidate = candidate;
+            }
+        });
+
+        // If we found a candidate (even if score is low due to overtime), assign them.
+        // We only fail if there are NO candidates (e.g., everyone is already on the project).
+        if (bestCandidate) {
+             const p = workingProjects.find((proj: any) => proj.id === task.projectId);
+             if (p && p.phasesConfig) {
+                 const candId = (bestCandidate as any).id;
+                 p.phasesConfig[task.phaseIndex].staffAllocation[task.allocIndex].staffTypeId = candId;
+
+                 // Update Local Loads
+                 for (let w = 0; w < task.duration; w++) {
+                     const weekIdx = task.startWeek + w;
+                     if (weekIdx < 53) {
+                         if (!weeklyLoads[candId]) weeklyLoads[candId] = new Array(53).fill(0);
+                         weeklyLoads[candId][weekIdx] += task.hoursPerWeek;
+                     }
+                 }
+             }
+        } else {
+            warnings.push(`Could not fill placeholder for ${task.projectName}.`);
+        }
+    });
+
+    return { projects: workingProjects, warnings };
+};
+
+/**
  * Optimizes the schedule by adjusting start weeks of unlocked projects.
  */
-export const optimizeSchedule = (
+const optimizeProjectTiming = (
   currentProjects: ProjectInput[],
   config: GlobalConfig
 ): ProjectInput[] => {
@@ -132,6 +286,25 @@ export const optimizeSchedule = (
     });
 
     return bestProjects;
+};
+
+/**
+ * Main optimization function exposed to UI.
+ * 1. Fills placeholders with staff assignments.
+ * 2. Optimizes project start dates to balance load.
+ */
+export const optimizeSchedule = (
+  projects: ProjectInput[],
+  config: GlobalConfig
+): { optimizedProjects: ProjectInput[], warnings: string[] } => {
+  // Phase 1: Assign Staff
+  const { projects: staffedProjects, warnings } = assignStaffToPlaceholders(projects, config);
+  
+  // Phase 2: Optimize Timing
+  // We use the staffed projects so timing decisions are based on real people's loads
+  const finalProjects = optimizeProjectTiming(staffedProjects, config);
+
+  return { optimizedProjects: finalProjects, warnings };
 };
 
 /**

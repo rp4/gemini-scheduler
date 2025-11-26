@@ -1,9 +1,8 @@
 
-
 import React, { useState } from 'react';
 import { GlobalConfig, StaffType, SkillLevel } from '../types';
 import { TEAMS } from '../constants';
-import { Plus, Trash2, Users, X, Sparkles } from 'lucide-react';
+import { Plus, Trash2, Users, X } from 'lucide-react';
 
 interface TeamMemberListProps {
   config: GlobalConfig;
@@ -196,17 +195,6 @@ export const TeamMemberList: React.FC<TeamMemberListProps> = ({ config, setConfi
               <span className="text-sm italic">No team members defined.</span>
             </div>
           )}
-        </div>
-
-        {/* Footer Actions */}
-        <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col gap-3 shrink-0">
-          <button 
-            onClick={() => {}}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-lg text-sm font-medium transition-all shadow-sm group"
-          >
-            <Sparkles className="w-4 h-4 group-hover:scale-110 transition-transform" />
-            Auto Assign
-          </button>
         </div>
       </div>
 
