@@ -43,6 +43,15 @@ interface GroupedRow {
   children: ScheduleRow[];
 }
 
+interface DragState {
+  startRowId: string;
+  startColIdx: number;
+  endColIdx: number;
+  type: 'hours' | 'phase';
+  val: any;
+  meta: { projectId?: string; staffTypeId?: string; staffIndex?: number };
+}
+
 export const ScheduleTable: React.FC<ScheduleTableProps> = ({ 
   data, 
   projects, 
@@ -60,6 +69,9 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
   
   // Editing State
   const [editingCell, setEditingCell] = useState<{ id: string, date: string, type: 'project' | 'staff' } | null>(null);
+
+  // Drag-to-Fill State
+  const [dragState, setDragState] = useState<DragState | null>(null);
 
   // Map Project IDs to Set of assigned Staff IDs
   const projectAssignments = useMemo(() => {
@@ -84,6 +96,50 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
   const uniqueRoles = useMemo(() => {
     return Array.from(new Set(config.staffTypes.map(s => s.role))).filter(Boolean).sort();
   }, [config.staffTypes]);
+
+  // Handle Drag Commit
+  useEffect(() => {
+    const handleMouseUp = () => {
+        if (dragState) {
+            const { startColIdx, endColIdx, val, type, meta } = dragState;
+            const start = Math.min(startColIdx, endColIdx);
+            const end = Math.max(startColIdx, endColIdx);
+            
+            for (let i = start; i <= end; i++) {
+                if (i === startColIdx) continue; // Skip source
+                
+                const date = data.headers[i];
+                if (type === 'phase' && meta.projectId) {
+                     onCellUpdate(meta.projectId, '', 0, date, val, 'phase');
+                } else if (type === 'hours' && meta.projectId && meta.staffTypeId && meta.staffIndex) {
+                     onCellUpdate(meta.projectId, meta.staffTypeId, meta.staffIndex, date, Number(val), 'hours');
+                }
+            }
+            setDragState(null);
+        }
+    };
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => window.removeEventListener('mouseup', handleMouseUp);
+  }, [dragState, data.headers, onCellUpdate]);
+
+  const handleDragStart = (e: React.MouseEvent, rowId: string, colIdx: number, type: 'hours'|'phase', val: any, meta: any) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragState({
+        startRowId: rowId,
+        startColIdx: colIdx,
+        endColIdx: colIdx,
+        type,
+        val,
+        meta
+    });
+  };
+
+  const handleDragEnter = (rowId: string, colIdx: number) => {
+    if (dragState && dragState.startRowId === rowId) {
+        setDragState({ ...dragState, endColIdx: colIdx });
+    }
+  };
 
   const toggleGroup = (id: string) => {
     const newSet = new Set(expandedGroups);
@@ -402,7 +458,7 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
     }
 
     return (
-        <table className="border-collapse min-w-max w-full text-sm">
+        <table className="border-collapse min-w-max w-full text-sm select-none">
           <thead className="bg-slate-100 sticky top-0 z-20 shadow-sm">
             <tr>
               <th className="sticky left-0 z-30 bg-slate-100 p-3 text-left font-semibold text-slate-600 border-r border-b border-slate-300 min-w-[200px] w-[200px]">
@@ -513,13 +569,19 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
                                cellColorClass = PHASE_COLORS[cell.phase || ''] || 'bg-gray-100 text-gray-600 border-gray-200';
                           }
 
+                          // Drag Logic
+                          const isDragActive = dragState?.startRowId === group.id;
+                          const isDragSelected = isDragActive && cIdx >= Math.min(dragState!.startColIdx, dragState!.endColIdx) && cIdx <= Math.max(dragState!.startColIdx, dragState!.endColIdx);
+                          const showDragHandle = canEdit && !isEditing && cell.phase !== 'Mixed' && cell.phase !== null;
+
                           return (
                           <td 
                             key={`g-${cIdx}`} 
-                            className={`p-1 text-center border-r border-slate-200 h-10 min-w-[50px] relative ${canEdit ? 'cursor-pointer hover:bg-indigo-50/50' : ''}`}
+                            className={`p-1 text-center border-r border-slate-200 h-10 min-w-[50px] relative group/cell ${canEdit ? 'cursor-pointer hover:bg-indigo-50/50' : ''} ${isDragSelected ? 'bg-indigo-100 ring-2 ring-indigo-400 z-10' : ''}`}
                             onClick={() => {
                                 if (canEdit) setEditingCell({ id: group.id, date: cell.date, type: 'project' });
                             }}
+                            onMouseEnter={() => handleDragEnter(group.id, cIdx)}
                           >
                              {isEditing ? (
                                 <div 
@@ -540,12 +602,21 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
                                 </div>
                              ) : (
                                 cell.hours > 0 && (
-                                    <div 
-                                        className={`h-full w-full rounded flex items-center justify-center text-[10px] font-bold border ${cellColorClass}`}
-                                        title={`${cell.phase || 'Allocated'}: ${cell.hours} hrs${viewMode === 'member' ? ` (Max: ${maxHours})` : ''}`}
-                                    >
-                                        {Math.round(cell.hours)}
-                                    </div>
+                                    <>
+                                        <div 
+                                            className={`h-full w-full rounded flex items-center justify-center text-[10px] font-bold border ${cellColorClass}`}
+                                            title={`${cell.phase || 'Allocated'}: ${cell.hours} hrs${viewMode === 'member' ? ` (Max: ${maxHours})` : ''}`}
+                                        >
+                                            {Math.round(cell.hours)}
+                                        </div>
+                                        {showDragHandle && (
+                                            <div 
+                                                className="absolute -bottom-1 -right-1 w-3 h-3 bg-indigo-600 border border-white cursor-crosshair opacity-0 group-hover/cell:opacity-100 z-20 rounded-sm hover:scale-125 transition-transform"
+                                                onMouseDown={(e) => handleDragStart(e, group.id, cIdx, 'phase', cell.phase, { projectId: group.projectId })}
+                                                onClick={(e) => e.stopPropagation()}
+                                            />
+                                        )}
+                                    </>
                                 )
                              )}
                           </td>
@@ -669,11 +740,17 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
                             {row.cells.map((cell, cIdx) => {
                                 const isEditing = editingCell?.id === row.rowId && editingCell?.date === cell.date && editingCell?.type === 'staff';
                                 
+                                // Drag Logic
+                                const isDragActive = dragState?.startRowId === row.rowId;
+                                const isDragSelected = isDragActive && cIdx >= Math.min(dragState!.startColIdx, dragState!.endColIdx) && cIdx <= Math.max(dragState!.startColIdx, dragState!.endColIdx);
+                                const showDragHandle = !isEditing;
+
                                 return (
                                 <td 
                                     key={`c-${cIdx}`} 
-                                    className={`p-1 text-center border-r border-slate-100 h-10 min-w-[50px] relative cursor-pointer hover:bg-indigo-50/50`}
+                                    className={`p-1 text-center border-r border-slate-100 h-10 min-w-[50px] relative cursor-pointer group/cell ${isDragSelected ? 'bg-indigo-100 ring-2 ring-indigo-400 z-10' : 'hover:bg-indigo-50/50'}`}
                                     onClick={() => setEditingCell({ id: row.rowId, date: cell.date, type: 'staff' })}
+                                    onMouseEnter={() => handleDragEnter(row.rowId, cIdx)}
                                 >
                                 {isEditing ? (
                                     <div 
@@ -693,16 +770,25 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({
                                         />
                                     </div>
                                 ) : (
-                                    cell.hours > 0 ? (
-                                        <div 
-                                            className={`h-[80%] w-full rounded-sm flex items-center justify-center text-[9px] border ${cell.isOverride ? 'border-indigo-500 ring-1 ring-indigo-200 opacity-100 font-bold' : 'opacity-80'} ${PHASE_COLORS[cell.phase || ''] || 'bg-gray-100'}`}
-                                            title={`${cell.phase}: ${cell.hours} hrs${cell.isOverride ? ' (Manual)' : ''}`}
-                                        >
-                                            {cell.hours}
-                                        </div>
-                                    ) : (
-                                        <div className="h-full w-full hover:bg-slate-100"></div>
-                                    )
+                                    <>
+                                        {cell.hours > 0 ? (
+                                            <div 
+                                                className={`h-[80%] w-full rounded-sm flex items-center justify-center text-[9px] border ${cell.isOverride ? 'border-indigo-500 ring-1 ring-indigo-200 opacity-100 font-bold' : 'opacity-80'} ${PHASE_COLORS[cell.phase || ''] || 'bg-gray-100'}`}
+                                                title={`${cell.phase}: ${cell.hours} hrs${cell.isOverride ? ' (Manual)' : ''}`}
+                                            >
+                                                {cell.hours}
+                                            </div>
+                                        ) : (
+                                            <div className="h-full w-full"></div>
+                                        )}
+                                        {showDragHandle && (
+                                            <div 
+                                                className="absolute -bottom-1 -right-1 w-3 h-3 bg-indigo-600 border border-white cursor-crosshair opacity-0 group-hover/cell:opacity-100 z-20 rounded-sm hover:scale-125 transition-transform"
+                                                onMouseDown={(e) => handleDragStart(e, row.rowId, cIdx, 'hours', cell.hours, { projectId: row.projectId, staffTypeId: row.staffTypeId, staffIndex: row.staffIndex })}
+                                                onClick={(e) => e.stopPropagation()}
+                                            />
+                                        )}
+                                    </>
                                 )}
                                 </td>
                             )})}
