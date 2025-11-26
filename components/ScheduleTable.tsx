@@ -1,8 +1,3 @@
-
-
-
-
-
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { ScheduleData, PhaseName, ScheduleRow, ScheduleCell, ProjectInput, GlobalConfig } from '../types';
 import { format, parseISO } from 'date-fns';
@@ -334,6 +329,14 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, projects, co
             ) : (
                 groupedData.map((group) => {
                   const isExpanded = expandedGroups.has(group.id);
+                  
+                  // For Member view, retrieve staff Max Hours
+                  let maxHours = 40;
+                  if (viewMode === 'member') {
+                     const staffId = group.children[0]?.staffTypeId;
+                     const staffMember = config.staffTypes.find(s => s.id === staffId);
+                     if (staffMember) maxHours = staffMember.maxHoursPerWeek;
+                  }
 
                   return (
                     <React.Fragment key={group.id}>
@@ -363,6 +366,17 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, projects, co
                           const isEditing = editingCell?.id === group.id && editingCell?.date === cell.date && editingCell?.type === 'project';
                           // Only allow editing phase on Project groups, not Member groups
                           const canEdit = viewMode === 'project' && group.projectId;
+                          
+                          let cellColorClass = '';
+                          if (viewMode === 'member') {
+                               if (cell.hours > maxHours) {
+                                   cellColorClass = 'bg-red-200 text-red-900 border-red-300 font-bold';
+                               } else {
+                                   cellColorClass = 'bg-emerald-100 text-emerald-800 border-emerald-200';
+                               }
+                          } else {
+                               cellColorClass = PHASE_COLORS[cell.phase || ''] || 'bg-gray-100 text-gray-600 border-gray-200';
+                          }
 
                           return (
                           <td 
@@ -392,8 +406,8 @@ export const ScheduleTable: React.FC<ScheduleTableProps> = ({ data, projects, co
                              ) : (
                                 cell.hours > 0 && (
                                     <div 
-                                        className={`h-full w-full rounded flex items-center justify-center text-[10px] font-bold border ${PHASE_COLORS[cell.phase || ''] || 'bg-gray-100 text-gray-600 border-gray-200'}`}
-                                        title={`${cell.phase || 'Allocated'}: ${cell.hours} hrs (Click to Change Phase)`}
+                                        className={`h-full w-full rounded flex items-center justify-center text-[10px] font-bold border ${cellColorClass}`}
+                                        title={`${cell.phase || 'Allocated'}: ${cell.hours} hrs${viewMode === 'member' ? ` (Max: ${maxHours})` : ''}`}
                                     >
                                         {Math.round(cell.hours)}
                                     </div>
