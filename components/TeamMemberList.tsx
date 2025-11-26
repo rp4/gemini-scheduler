@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { GlobalConfig, StaffType } from '../types';
-import { TEAMS } from '../constants';
+import { GlobalConfig, StaffType, SkillLevel } from '../types';
+import { TEAMS, SKILLS_LIST } from '../constants';
 import { Plus, Trash2, Users, X } from 'lucide-react';
 
 interface TeamMemberListProps {
@@ -15,12 +15,14 @@ export const TeamMemberList: React.FC<TeamMemberListProps> = ({ config, setConfi
   const [newName, setNewName] = useState('');
   const [newHours, setNewHours] = useState<number>(40);
   const [newTeam, setNewTeam] = useState<string>(TEAMS[0]);
+  const [newSkills, setNewSkills] = useState<Record<string, SkillLevel>>({});
 
   const openAddModal = () => {
     setEditingMemberId(null);
     setNewName('');
     setNewHours(40);
     setNewTeam(TEAMS[0]);
+    setNewSkills({});
     setIsModalOpen(true);
   };
 
@@ -29,6 +31,7 @@ export const TeamMemberList: React.FC<TeamMemberListProps> = ({ config, setConfi
     setNewName(staff.name);
     setNewHours(staff.maxHoursPerWeek);
     setNewTeam(staff.team || TEAMS[0]);
+    setNewSkills(staff.skills || {});
     setIsModalOpen(true);
   };
 
@@ -43,7 +46,8 @@ export const TeamMemberList: React.FC<TeamMemberListProps> = ({ config, setConfi
                 ...s,
                 name: newName,
                 maxHoursPerWeek: newHours,
-                team: newTeam
+                team: newTeam,
+                skills: newSkills
             } : s)
         });
     } else {
@@ -66,7 +70,8 @@ export const TeamMemberList: React.FC<TeamMemberListProps> = ({ config, setConfi
           name: newName,
           maxHoursPerWeek: newHours,
           color,
-          team: newTeam
+          team: newTeam,
+          skills: newSkills
         };
     
         // Update staff types AND ensure phases have allocation entry (default 0)
@@ -85,6 +90,7 @@ export const TeamMemberList: React.FC<TeamMemberListProps> = ({ config, setConfi
     setNewName('');
     setNewHours(40);
     setNewTeam(TEAMS[0]);
+    setNewSkills({});
     setIsModalOpen(false);
     setEditingMemberId(null);
   };
@@ -105,6 +111,13 @@ export const TeamMemberList: React.FC<TeamMemberListProps> = ({ config, setConfi
       ...config,
       staffTypes: config.staffTypes.map(s => s.id === id ? { ...s, [field]: value } : s)
     });
+  };
+
+  const updateSkillLevel = (skill: string, level: SkillLevel) => {
+    setNewSkills(prev => ({
+      ...prev,
+      [skill]: level
+    }));
   };
 
   return (
@@ -184,8 +197,8 @@ export const TeamMemberList: React.FC<TeamMemberListProps> = ({ config, setConfi
                 className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" 
                 onClick={() => setIsModalOpen(false)}
             />
-            <div className="relative w-full max-w-md bg-white rounded-xl shadow-2xl transform transition-all flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+            <div className="relative w-full max-w-md bg-white rounded-xl shadow-2xl transform transition-all flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 h-[600px]">
+                <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 shrink-0">
                     <h3 className="text-lg font-bold text-slate-800">
                         {editingMemberId ? 'Edit Team Member' : 'Add Team Member'}
                     </h3>
@@ -197,7 +210,7 @@ export const TeamMemberList: React.FC<TeamMemberListProps> = ({ config, setConfi
                     </button>
                 </div>
                 
-                <div className="p-6 space-y-5">
+                <div className="p-6 space-y-5 flex-1 overflow-y-auto custom-scrollbar">
                     <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1.5">Role / Name</label>
                         <input
@@ -211,31 +224,65 @@ export const TeamMemberList: React.FC<TeamMemberListProps> = ({ config, setConfi
                         />
                     </div>
                     
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1.5">Team</label>
-                        <select
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
-                            value={newTeam}
-                            onChange={(e) => setNewTeam(e.target.value)}
-                        >
-                            {TEAMS.map(team => (
-                                <option key={team} value={team}>{team}</option>
-                            ))}
-                        </select>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1.5">Team</label>
+                            <select
+                                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
+                                value={newTeam}
+                                onChange={(e) => setNewTeam(e.target.value)}
+                            >
+                                {TEAMS.map(team => (
+                                    <option key={team} value={team}>{team}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1.5">Max Hours / Week</label>
+                            <input
+                                type="number"
+                                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
+                                value={newHours}
+                                onChange={(e) => setNewHours(parseInt(e.target.value) || 0)}
+                            />
+                        </div>
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1.5">Max Hours / Week</label>
-                        <input
-                            type="number"
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
-                            value={newHours}
-                            onChange={(e) => setNewHours(parseInt(e.target.value) || 0)}
-                        />
+                        <label className="block text-sm font-medium text-slate-700 mb-1.5">Skills & Proficiency</label>
+                        <div className="w-full border border-slate-300 rounded-lg h-60 overflow-y-auto bg-slate-50/50 custom-scrollbar divide-y divide-slate-100">
+                            {SKILLS_LIST.map(skill => {
+                                const level = newSkills[skill] || 'None';
+                                const getLevelColor = (l: SkillLevel) => {
+                                    switch(l) {
+                                        case 'Advanced': return 'text-emerald-600 bg-emerald-50 border-emerald-200';
+                                        case 'Intermediate': return 'text-indigo-600 bg-indigo-50 border-indigo-200';
+                                        case 'Beginner': return 'text-blue-600 bg-blue-50 border-blue-200';
+                                        default: return 'text-slate-500 bg-white border-slate-200';
+                                    }
+                                };
+                                
+                                return (
+                                <div key={skill} className="flex items-center justify-between p-2.5 hover:bg-white transition-colors group">
+                                    <span className="text-xs text-slate-700 font-medium">{skill}</span>
+                                    <select
+                                        className={`text-[10px] font-medium border rounded px-2 py-1 outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer transition-colors ${getLevelColor(level)}`}
+                                        value={level}
+                                        onChange={(e) => updateSkillLevel(skill, e.target.value as SkillLevel)}
+                                    >
+                                        <option value="None" className="bg-white text-slate-500">None</option>
+                                        <option value="Beginner" className="bg-white text-blue-600">Beginner</option>
+                                        <option value="Intermediate" className="bg-white text-indigo-600">Intermediate</option>
+                                        <option value="Advanced" className="bg-white text-emerald-600">Advanced</option>
+                                    </select>
+                                </div>
+                            )})}
+                        </div>
                     </div>
                 </div>
 
-                <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+                <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 shrink-0">
                     <button 
                         onClick={() => setIsModalOpen(false)}
                         className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-200/50 rounded-lg transition-colors"

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ProjectInput, GlobalConfig } from '../types';
-import { TEAMS } from '../constants';
+import { TEAMS, SKILLS_LIST } from '../constants';
 import { Plus, Trash2, Calendar, Lock, Unlock, X, Sparkles, Settings } from 'lucide-react';
 
 interface ProjectListProps {
@@ -27,6 +27,7 @@ export const ProjectList: React.FC<ProjectListProps> = ({
   const [newProjectBudget, setNewProjectBudget] = useState<number>(200);
   const [newProjectOffset, setNewProjectOffset] = useState<number>(0);
   const [newProjectTeam, setNewProjectTeam] = useState<string>(TEAMS[0]);
+  const [newProjectSkills, setNewProjectSkills] = useState<string[]>([]);
 
   const openAddModal = () => {
     setEditingProjectId(null);
@@ -36,6 +37,7 @@ export const ProjectList: React.FC<ProjectListProps> = ({
     const nextOffset = projects.length > 0 ? Math.max(...projects.map(p => p.startWeekOffset)) + 4 : 0;
     setNewProjectOffset(nextOffset);
     setNewProjectTeam(TEAMS[0]);
+    setNewProjectSkills([]);
     setIsModalOpen(true);
   };
 
@@ -45,6 +47,7 @@ export const ProjectList: React.FC<ProjectListProps> = ({
     setNewProjectBudget(project.budgetHours);
     setNewProjectOffset(project.startWeekOffset);
     setNewProjectTeam(project.team || TEAMS[0]);
+    setNewProjectSkills(project.requiredSkills || []);
     setIsModalOpen(true);
   };
 
@@ -58,7 +61,8 @@ export const ProjectList: React.FC<ProjectListProps> = ({
             name: newProjectName,
             budgetHours: newProjectBudget,
             startWeekOffset: newProjectOffset,
-            team: newProjectTeam
+            team: newProjectTeam,
+            requiredSkills: newProjectSkills
         } : p));
     } else {
         // Create new project
@@ -74,7 +78,8 @@ export const ProjectList: React.FC<ProjectListProps> = ({
             startWeekOffset: newProjectOffset,
             locked: false,
             phasesConfig: phasesSnapshot,
-            team: newProjectTeam
+            team: newProjectTeam,
+            requiredSkills: newProjectSkills
         };
         setProjects([...projects, project]);
     }
@@ -83,6 +88,7 @@ export const ProjectList: React.FC<ProjectListProps> = ({
     setNewProjectName('');
     setNewProjectBudget(200);
     setNewProjectTeam(TEAMS[0]);
+    setNewProjectSkills([]);
     setEditingProjectId(null);
     setIsModalOpen(false);
   };
@@ -93,6 +99,14 @@ export const ProjectList: React.FC<ProjectListProps> = ({
 
   const updateProject = (id: string, field: keyof ProjectInput, value: any) => {
     setProjects(projects.map(p => p.id === id ? { ...p, [field]: value } : p));
+  };
+
+  const toggleSkill = (skill: string) => {
+    if (newProjectSkills.includes(skill)) {
+      setNewProjectSkills(newProjectSkills.filter(s => s !== skill));
+    } else {
+      setNewProjectSkills([...newProjectSkills, skill]);
+    }
   };
 
   return (
@@ -127,9 +141,16 @@ export const ProjectList: React.FC<ProjectListProps> = ({
                     <div className="font-medium text-slate-700 truncate text-sm" title={project.name}>
                         {project.name}
                     </div>
-                    {project.team && (
-                        <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">{project.team}</span>
-                    )}
+                    <div className="flex items-center gap-2 mt-0.5">
+                      {project.team && (
+                          <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">{project.team}</span>
+                      )}
+                      {project.requiredSkills && project.requiredSkills.length > 0 && (
+                        <span className="text-[10px] text-indigo-500 bg-indigo-50 px-1 rounded-sm">
+                          {project.requiredSkills.length} Skills
+                        </span>
+                      )}
+                    </div>
                  </div>
 
                  {/* Budget */}
@@ -219,8 +240,8 @@ export const ProjectList: React.FC<ProjectListProps> = ({
                 className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" 
                 onClick={() => setIsModalOpen(false)}
             />
-            <div className="relative w-full max-w-md bg-white rounded-xl shadow-2xl transform transition-all flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+            <div className="relative w-full max-w-md bg-white rounded-xl shadow-2xl transform transition-all flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 h-[600px]">
+                <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 shrink-0">
                     <h3 className="text-lg font-bold text-slate-800">
                         {editingProjectId ? 'Edit Project' : 'Add New Project'}
                     </h3>
@@ -232,7 +253,7 @@ export const ProjectList: React.FC<ProjectListProps> = ({
                     </button>
                 </div>
                 
-                <div className="p-6 space-y-5">
+                <div className="p-6 space-y-5 flex-1 overflow-y-auto custom-scrollbar">
                     <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1.5">Project Name</label>
                         <input
@@ -280,9 +301,30 @@ export const ProjectList: React.FC<ProjectListProps> = ({
                             <p className="text-[10px] text-slate-400 mt-1.5">Weeks from Jan 1st</p>
                         </div>
                     </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1.5">Required Skills</label>
+                      <div className="w-full border border-slate-300 rounded-lg h-32 overflow-y-auto p-2 bg-slate-50/50 custom-scrollbar">
+                        {SKILLS_LIST.map(skill => (
+                          <label key={skill} className="flex items-center gap-2 p-1.5 hover:bg-white hover:shadow-sm rounded cursor-pointer transition-all">
+                            <input
+                              type="checkbox"
+                              className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                              checked={newProjectSkills.includes(skill)}
+                              onChange={() => toggleSkill(skill)}
+                            />
+                            <span className="text-xs text-slate-700">{skill}</span>
+                          </label>
+                        ))}
+                      </div>
+                      <p className="text-[10px] text-slate-400 mt-1.5 flex justify-between">
+                         <span>Select all skills required for this audit.</span>
+                         <span className="font-semibold text-indigo-600">{newProjectSkills.length} selected</span>
+                      </p>
+                    </div>
                 </div>
 
-                <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+                <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 shrink-0">
                     <button 
                         onClick={() => setIsModalOpen(false)}
                         className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-200/50 rounded-lg transition-colors"

@@ -2,6 +2,25 @@ import { GlobalConfig, PhaseName, StaffType, ProjectInput } from './types';
 
 export const TEAMS = ['Finance', 'IT', 'Operations', 'Compliance', 'General'];
 
+export const SKILLS_LIST = [
+  'Anti-Money Laundering (AML)',
+  'Cloud Security',
+  'Communication',
+  'Cybersecurity',
+  'Data Analytics',
+  'Enterprise Risk Management',
+  'Financial Accounting',
+  'Fraud Investigation',
+  'Governance',
+  'Internal Controls (SOX)',
+  'IT General Controls',
+  'Process Improvement',
+  'Project Management',
+  'Python/R',
+  'Regulatory Compliance',
+  'SQL',
+];
+
 export const DEFAULT_STAFF_TYPES: StaffType[] = [
   { id: 'pm', name: 'Portfolio Manager', maxHoursPerWeek: 10, color: 'bg-purple-100 text-purple-800', team: 'General' },
   { id: 'lead', name: 'Audit Lead', maxHoursPerWeek: 40, color: 'bg-blue-100 text-blue-800', team: 'General' },
@@ -63,7 +82,7 @@ export const DEFAULT_CONFIG: GlobalConfig = {
 const getBasePhases = () => JSON.parse(JSON.stringify(DEFAULT_CONFIG.phases));
 
 export const INITIAL_PROJECTS: ProjectInput[] = [
-  { id: '1', name: 'Cybersecurity Review', budgetHours: 400, startWeekOffset: 0, locked: false, phasesConfig: getBasePhases(), team: 'IT' },
-  { id: '2', name: 'Financial Controls 2026', budgetHours: 600, startWeekOffset: 4, locked: false, phasesConfig: getBasePhases(), team: 'Finance' },
-  { id: '3', name: 'HR Compliance Audit', budgetHours: 300, startWeekOffset: 12, locked: false, phasesConfig: getBasePhases(), team: 'Operations' },
+  { id: '1', name: 'Cybersecurity Review', budgetHours: 400, startWeekOffset: 0, locked: false, phasesConfig: getBasePhases(), team: 'IT', requiredSkills: ['Cybersecurity', 'IT General Controls'] },
+  { id: '2', name: 'Financial Controls 2026', budgetHours: 600, startWeekOffset: 4, locked: false, phasesConfig: getBasePhases(), team: 'Finance', requiredSkills: ['Financial Accounting', 'Internal Controls (SOX)'] },
+  { id: '3', name: 'HR Compliance Audit', budgetHours: 300, startWeekOffset: 12, locked: false, phasesConfig: getBasePhases(), team: 'Operations', requiredSkills: ['Regulatory Compliance', 'Communication'] },
 ];

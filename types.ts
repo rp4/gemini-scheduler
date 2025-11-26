@@ -5,12 +5,15 @@ export enum PhaseName {
   REPORTING = 'Reporting'
 }
 
+export type SkillLevel = 'None' | 'Beginner' | 'Intermediate' | 'Advanced';
+
 export interface StaffType {
   id: string;
   name: string;
   maxHoursPerWeek: number;
   color: string;
   team?: string;
+  skills?: Record<string, SkillLevel>;
 }
 
 export interface StaffPhaseConfig {
@@ -48,6 +51,7 @@ export interface ProjectInput {
   phasesConfig: PhaseConfig[]; // Snapshot of configuration at creation
   overrides?: ProjectOverrides;
   team?: string;
+  requiredSkills?: string[];
 }
 
 // Structure for the output table
