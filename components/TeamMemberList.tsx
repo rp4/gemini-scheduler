@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { GlobalConfig, StaffType } from '../types';
+import { TEAMS } from '../constants';
 import { Plus, Trash2, Users, X } from 'lucide-react';
 
 interface TeamMemberListProps {
@@ -9,45 +10,83 @@ interface TeamMemberListProps {
 
 export const TeamMemberList: React.FC<TeamMemberListProps> = ({ config, setConfig }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
+  
   const [newName, setNewName] = useState('');
   const [newHours, setNewHours] = useState<number>(40);
+  const [newTeam, setNewTeam] = useState<string>(TEAMS[0]);
 
-  const addMember = () => {
-    if (!newName.trim()) return;
-    const id = `role-${Date.now()}`;
-    // Rotate through some colors
-    const colors = [
-      'bg-purple-100 text-purple-800',
-      'bg-blue-100 text-blue-800', 
-      'bg-green-100 text-green-800', 
-      'bg-amber-100 text-amber-800', 
-      'bg-rose-100 text-rose-800',
-      'bg-cyan-100 text-cyan-800',
-      'bg-indigo-100 text-indigo-800'
-    ];
-    const color = colors[config.staffTypes.length % colors.length];
-
-    const newStaff: StaffType = {
-      id,
-      name: newName,
-      maxHoursPerWeek: newHours,
-      color
-    };
-
-    // Update staff types AND ensure phases have allocation entry (default 0)
-    const updatedPhases = config.phases.map(p => ({
-      ...p,
-      staffAllocation: [...p.staffAllocation, { staffTypeId: id, percentage: 0 }]
-    }));
-
-    setConfig({
-      ...config,
-      staffTypes: [...config.staffTypes, newStaff],
-      phases: updatedPhases
-    });
+  const openAddModal = () => {
+    setEditingMemberId(null);
     setNewName('');
     setNewHours(40);
+    setNewTeam(TEAMS[0]);
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (staff: StaffType) => {
+    setEditingMemberId(staff.id);
+    setNewName(staff.name);
+    setNewHours(staff.maxHoursPerWeek);
+    setNewTeam(staff.team || TEAMS[0]);
+    setIsModalOpen(true);
+  };
+
+  const handleSave = () => {
+    if (!newName.trim()) return;
+
+    if (editingMemberId) {
+        // Edit existing member
+        setConfig({
+            ...config,
+            staffTypes: config.staffTypes.map(s => s.id === editingMemberId ? {
+                ...s,
+                name: newName,
+                maxHoursPerWeek: newHours,
+                team: newTeam
+            } : s)
+        });
+    } else {
+        // Add new member
+        const id = `role-${Date.now()}`;
+        // Rotate through some colors
+        const colors = [
+          'bg-purple-100 text-purple-800',
+          'bg-blue-100 text-blue-800', 
+          'bg-green-100 text-green-800', 
+          'bg-amber-100 text-amber-800', 
+          'bg-rose-100 text-rose-800',
+          'bg-cyan-100 text-cyan-800',
+          'bg-indigo-100 text-indigo-800'
+        ];
+        const color = colors[config.staffTypes.length % colors.length];
+    
+        const newStaff: StaffType = {
+          id,
+          name: newName,
+          maxHoursPerWeek: newHours,
+          color,
+          team: newTeam
+        };
+    
+        // Update staff types AND ensure phases have allocation entry (default 0)
+        const updatedPhases = config.phases.map(p => ({
+          ...p,
+          staffAllocation: [...p.staffAllocation, { staffTypeId: id, percentage: 0 }]
+        }));
+    
+        setConfig({
+          ...config,
+          staffTypes: [...config.staffTypes, newStaff],
+          phases: updatedPhases
+        });
+    }
+
+    setNewName('');
+    setNewHours(40);
+    setNewTeam(TEAMS[0]);
     setIsModalOpen(false);
+    setEditingMemberId(null);
   };
 
   const removeMember = (id: string) => {
@@ -71,13 +110,13 @@ export const TeamMemberList: React.FC<TeamMemberListProps> = ({ config, setConfi
   return (
     <>
       <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 h-full flex flex-col">
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex justify-between items-center mb-6 shrink-0">
           <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
             <Users className="w-5 h-5 text-indigo-600" />
             Team Members
           </h2>
           <button 
-              onClick={() => setIsModalOpen(true)}
+              onClick={openAddModal}
               className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-sm active:scale-95"
           >
               <Plus className="w-3.5 h-3.5" />
@@ -85,19 +124,27 @@ export const TeamMemberList: React.FC<TeamMemberListProps> = ({ config, setConfi
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pr-2">
+        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pr-2 min-h-0">
           {config.staffTypes.map((staff) => (
-               <div key={staff.id} className="flex items-center gap-2 p-3 bg-white border border-slate-200 rounded-lg hover:shadow-md transition-all group">
+               <div 
+                  key={staff.id} 
+                  onClick={() => openEditModal(staff)}
+                  className="flex items-center gap-2 p-3 bg-white border border-slate-200 rounded-lg hover:shadow-md transition-all group cursor-pointer"
+                >
                   <div className={`w-2 h-10 rounded-full ${staff.color.split(' ')[0]}`}></div>
                   <div className="flex-1 grid grid-cols-12 gap-2 items-center">
-                      <div className="col-span-7">
+                      <div className="col-span-7 flex flex-col">
                            <label className="text-[10px] text-slate-400 block">Role Name</label>
                            <input 
                               type="text"
                               className="w-full font-medium text-slate-700 text-sm bg-transparent border-b border-transparent focus:border-indigo-300 outline-none transition-colors"
                               value={staff.name}
+                              onClick={(e) => e.stopPropagation()}
                               onChange={(e) => updateMember(staff.id, 'name', e.target.value)}
                            />
+                           {staff.team && (
+                               <span className="text-[10px] text-slate-400 mt-0.5">{staff.team}</span>
+                           )}
                       </div>
                       <div className="col-span-5">
                           <label className="text-[10px] text-slate-400 block">Hrs/Wk</label>
@@ -105,13 +152,17 @@ export const TeamMemberList: React.FC<TeamMemberListProps> = ({ config, setConfi
                               type="number"
                               className="w-full text-slate-600 text-sm bg-slate-50 border border-slate-200 rounded px-2 py-1 focus:bg-white focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
                               value={staff.maxHoursPerWeek}
+                              onClick={(e) => e.stopPropagation()}
                               onChange={(e) => updateMember(staff.id, 'maxHoursPerWeek', parseInt(e.target.value) || 0)}
                            />
                       </div>
                   </div>
                   <button
-                      onClick={() => removeMember(staff.id)}
-                      className="text-slate-300 hover:text-red-500 hover:bg-red-50 rounded p-1 transition-colors opacity-0 group-hover:opacity-100"
+                      onClick={(e) => {
+                          e.stopPropagation();
+                          removeMember(staff.id);
+                      }}
+                      className="text-slate-300 hover:text-red-500 hover:bg-red-50 rounded p-1 transition-colors opacity-0 group-hover:opacity-100 self-center"
                   >
                       <Trash2 className="w-4 h-4" />
                   </button>
@@ -135,7 +186,9 @@ export const TeamMemberList: React.FC<TeamMemberListProps> = ({ config, setConfi
             />
             <div className="relative w-full max-w-md bg-white rounded-xl shadow-2xl transform transition-all flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                 <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                    <h3 className="text-lg font-bold text-slate-800">Add Team Member</h3>
+                    <h3 className="text-lg font-bold text-slate-800">
+                        {editingMemberId ? 'Edit Team Member' : 'Add Team Member'}
+                    </h3>
                     <button 
                         onClick={() => setIsModalOpen(false)}
                         className="p-1 rounded-full hover:bg-slate-200 text-slate-400 hover:text-slate-600 transition-colors"
@@ -154,10 +207,23 @@ export const TeamMemberList: React.FC<TeamMemberListProps> = ({ config, setConfi
                             placeholder="e.g., Senior Auditor"
                             value={newName}
                             onChange={(e) => setNewName(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && addMember()}
+                            onKeyDown={(e) => e.key === 'Enter' && handleSave()}
                         />
                     </div>
                     
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1.5">Team</label>
+                        <select
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
+                            value={newTeam}
+                            onChange={(e) => setNewTeam(e.target.value)}
+                        >
+                            {TEAMS.map(team => (
+                                <option key={team} value={team}>{team}</option>
+                            ))}
+                        </select>
+                    </div>
+
                     <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1.5">Max Hours / Week</label>
                         <input
@@ -177,11 +243,11 @@ export const TeamMemberList: React.FC<TeamMemberListProps> = ({ config, setConfi
                         Cancel
                     </button>
                     <button 
-                        onClick={addMember}
+                        onClick={handleSave}
                         disabled={!newName.trim()}
                         className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 rounded-lg shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        Add Member
+                        {editingMemberId ? 'Save Changes' : 'Add Member'}
                     </button>
                 </div>
             </div>

@@ -1,9 +1,11 @@
 import { GlobalConfig, PhaseName, StaffType, ProjectInput } from './types';
 
+export const TEAMS = ['Finance', 'IT', 'Operations', 'Compliance', 'General'];
+
 export const DEFAULT_STAFF_TYPES: StaffType[] = [
-  { id: 'pm', name: 'Portfolio Manager', maxHoursPerWeek: 10, color: 'bg-purple-100 text-purple-800' },
-  { id: 'lead', name: 'Audit Lead', maxHoursPerWeek: 40, color: 'bg-blue-100 text-blue-800' },
-  { id: 'staff', name: 'Staff Auditor', maxHoursPerWeek: 40, color: 'bg-green-100 text-green-800' },
+  { id: 'pm', name: 'Portfolio Manager', maxHoursPerWeek: 10, color: 'bg-purple-100 text-purple-800', team: 'General' },
+  { id: 'lead', name: 'Audit Lead', maxHoursPerWeek: 40, color: 'bg-blue-100 text-blue-800', team: 'General' },
+  { id: 'staff', name: 'Staff Auditor', maxHoursPerWeek: 40, color: 'bg-green-100 text-green-800', team: 'General' },
 ];
 
 export const DEFAULT_CONFIG: GlobalConfig = {
@@ -61,7 +63,7 @@ export const DEFAULT_CONFIG: GlobalConfig = {
 const getBasePhases = () => JSON.parse(JSON.stringify(DEFAULT_CONFIG.phases));
 
 export const INITIAL_PROJECTS: ProjectInput[] = [
-  { id: '1', name: 'Cybersecurity Review', budgetHours: 400, startWeekOffset: 0, locked: false, phasesConfig: getBasePhases() },
-  { id: '2', name: 'Financial Controls 2026', budgetHours: 600, startWeekOffset: 4, locked: false, phasesConfig: getBasePhases() },
-  { id: '3', name: 'HR Compliance Audit', budgetHours: 300, startWeekOffset: 12, locked: false, phasesConfig: getBasePhases() },
+  { id: '1', name: 'Cybersecurity Review', budgetHours: 400, startWeekOffset: 0, locked: false, phasesConfig: getBasePhases(), team: 'IT' },
+  { id: '2', name: 'Financial Controls 2026', budgetHours: 600, startWeekOffset: 4, locked: false, phasesConfig: getBasePhases(), team: 'Finance' },
+  { id: '3', name: 'HR Compliance Audit', budgetHours: 300, startWeekOffset: 12, locked: false, phasesConfig: getBasePhases(), team: 'Operations' },
 ];

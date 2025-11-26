@@ -10,6 +10,7 @@ export interface StaffType {
   name: string;
   maxHoursPerWeek: number;
   color: string;
+  team?: string;
 }
 
 export interface StaffPhaseConfig {
@@ -46,6 +47,7 @@ export interface ProjectInput {
   locked: boolean;
   phasesConfig: PhaseConfig[]; // Snapshot of configuration at creation
   overrides?: ProjectOverrides;
+  team?: string;
 }
 
 // Structure for the output table

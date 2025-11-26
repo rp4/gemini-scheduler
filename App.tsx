@@ -68,23 +68,6 @@ const App: React.FC = () => {
           <div className="text-sm text-slate-400 mr-4 hidden md:block">
             Planning Year: <span className="text-white font-mono">{config.year}</span>
           </div>
-          
-          <button 
-            onClick={handleOptimize}
-            disabled={isOptimizing}
-            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 rounded-md text-sm font-medium transition-all shadow-md disabled:opacity-70 disabled:cursor-not-allowed"
-          >
-            <Sparkles className={`w-4 h-4 ${isOptimizing ? 'animate-spin' : ''}`} />
-            {isOptimizing ? 'Optimizing...' : 'Auto-Optimize'}
-          </button>
-
-          <button 
-            onClick={() => setIsConfigOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-md text-sm transition-all border border-slate-700"
-          >
-            <Settings className="w-4 h-4" />
-            Configure Rules
-          </button>
         </div>
       </header>
 
@@ -93,7 +76,14 @@ const App: React.FC = () => {
         {/* Left Sidebar */}
         <aside className="w-96 shrink-0 flex flex-col h-full">
            {viewMode === 'project' ? (
-             <ProjectList projects={projects} setProjects={setProjects} currentConfig={config} />
+             <ProjectList 
+                projects={projects} 
+                setProjects={setProjects} 
+                currentConfig={config} 
+                onOptimize={handleOptimize}
+                isOptimizing={isOptimizing}
+                onConfigure={() => setIsConfigOpen(true)}
+             />
            ) : (
              <TeamMemberList config={config} setConfig={setConfig} />
            )}
